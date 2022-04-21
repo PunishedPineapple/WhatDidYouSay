@@ -55,7 +55,7 @@ namespace WhatDidYouSay
 				return;
 			}
 
-			if( ImGui.Begin( Loc.Localize( "Window Title: Config", "\"What did you say?\" Settings" ) + "###\"What did you say?\" Settings",
+			if( ImGui.Begin( Loc.Localize( "Window Title: Config", "\"Say What?\" Settings" ) + "###\"Say What?\" Settings",
 				ImGuiWindowFlags.AlwaysAutoResize | ImGuiWindowFlags.NoCollapse | ImGuiWindowFlags.NoScrollbar | ImGuiWindowFlags.NoScrollWithMouse ) )
 			{
 				ImGui.Text( Loc.Localize( "Config Option: Minimum time between log messages.", "Minimum time between log messages (msec):" ) );
@@ -143,7 +143,7 @@ namespace WhatDidYouSay
 			//	Draw the window.
 			ImGui.SetNextWindowSize( new Vector2( 1340, 568 ) * ImGui.GetIO().FontGlobalScale, ImGuiCond.FirstUseEver );
 			ImGui.SetNextWindowSizeConstraints( new Vector2( 375, 340 ) * ImGui.GetIO().FontGlobalScale, new Vector2( float.MaxValue, float.MaxValue ) );
-			if( ImGui.Begin( Loc.Localize( "Window Title: Debug Data", "\"What did you say?\" Debug Data" ) + "###\"What did you say?\" Debug Data", ref mDebugWindowVisible ) )
+			if( ImGui.Begin( Loc.Localize( "Window Title: Debug Data", "\"Say What?\" Debug Data" ) + "###\"Say What?\" Debug Data", ref mDebugWindowVisible ) )
 			{
 				if( ImGui.Button( "Export Localizable Strings" ) )
 				{
