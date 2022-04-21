@@ -19,6 +19,34 @@
     "message": "\"What did you say?\" Settings",
     "description": "PluginUI.DrawSettingsWindow"
   },
+  "Config Option: Minimum time between log messages.": {
+    "message": "Minimum time between log messages (msec):",
+    "description": "PluginUI.DrawSettingsWindow"
+  },
+  "Config Option: Log message channel.": {
+    "message": "Log channel to use:",
+    "description": "PluginUI.DrawSettingsWindow"
+  },
+  "Config Option: Allow repeated speech to print to log (overworld).": {
+    "message": "Allow repeated speech to print to log.",
+    "description": "PluginUI.DrawSettingsWindow"
+  },
+  "Help: Config Options Allow Repeated Speech": {
+    "message": "If this is not checked, a given NPC speech bubble will never be repeated in the chat log until you change zones and come back.",
+    "description": "PluginUI.DrawSettingsWindow"
+  },
+  "Config Option: Time before repeated speech can be printed again (overworld).": {
+    "message": "Time before repeated speech can be printed again (sec):",
+    "description": "PluginUI.DrawSettingsWindow"
+  },
+  "Config Option: Allow repeated speech to print to log (in-instance).": {
+    "message": "Allow repeated speech to print to log.",
+    "description": "PluginUI.DrawSettingsWindow"
+  },
+  "Config Option: Time before repeated speech can be printed again (in-instance).": {
+    "message": "Time before repeated speech can be printed again (sec):",
+    "description": "PluginUI.DrawSettingsWindow"
+  },
   "Button: Save and Close": {
     "message": "Save and Close",
     "description": "PluginUI.DrawSettingsWindow"

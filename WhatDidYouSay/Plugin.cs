@@ -244,7 +244,7 @@ namespace WhatDidYouSay
 			{
 				var chatEntry = new Dalamud.Game.Text.XivChatEntry
 				{
-					Type = (Dalamud.Game.Text.XivChatType)0x44,//Dalamud.Game.Text.XivChatType.NPCDialogueAnnouncements,	//***** TODO: Make chat channel configurable.
+					Type = mConfiguration.ChatChannelToUse,
 					Message = new Dalamud.Game.Text.SeStringHandling.SeString( new List<Dalamud.Game.Text.SeStringHandling.Payload>
 				{
 					new Dalamud.Game.Text.SeStringHandling.Payloads.TextPayload( msg )

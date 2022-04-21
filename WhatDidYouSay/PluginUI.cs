@@ -58,9 +58,25 @@ namespace WhatDidYouSay
 			if( ImGui.Begin( Loc.Localize( "Window Title: Config", "\"What did you say?\" Settings" ) + "###\"What did you say?\" Settings",
 				ImGuiWindowFlags.AlwaysAutoResize | ImGuiWindowFlags.NoCollapse | ImGuiWindowFlags.NoScrollbar | ImGuiWindowFlags.NoScrollWithMouse ) )
 			{
-				//***** TODO: Localization.
-				ImGui.Text( "Minimum time between log messages (msec):" );
+				ImGui.Text( Loc.Localize( "Config Option: Minimum time between log messages.", "Minimum time between log messages (msec):" ) );
 				ImGui.SliderInt( "###Minimum time between any log messages.", ref mConfiguration.mMinTimeBetweenChatPrints_mSec, 0, 2000 );
+
+				ImGui.Spacing();
+				ImGui.Spacing();
+				ImGui.Spacing();
+				ImGui.Spacing();
+				ImGui.Spacing();
+
+				//***** TODO: Revisit this when Dalamud has the right chat type enums.
+				ImGui.Text( Loc.Localize( "Config Option: Log message channel.", "Log channel to use:" ) );
+				int selectedIndex = mConfiguration.mChatChannelToUse == 0x44 ? 1 : 0;
+				string[] comboItems = new string[]
+				{
+					"NPC Dialogue",
+					"NPC Dialogue (Announcements)"
+				};
+				ImGui.Combo( "###Chat Channel Dropdown", ref selectedIndex, comboItems, comboItems.Length );
+				mConfiguration.mChatChannelToUse = selectedIndex == 1 ? 0x44 : 0x3D;
 
 				ImGui.Spacing();
 				ImGui.Spacing();
@@ -70,12 +86,12 @@ namespace WhatDidYouSay
 
 				ImGui.Text( "Overworld:" );
 				ImGui.Indent();
-				ImGui.Checkbox( "Allow repeated speech to print to log.", ref mConfiguration.mRepeatsAllowed );
-				//***** TODO: Add note about always resetting when zoning.
+				ImGui.Checkbox( Loc.Localize( "Config Option: Allow repeated speech to print to log (overworld).", "Allow repeated speech to print to log." ) + "###Allow repeated speech to print to log (overworld).", ref mConfiguration.mRepeatsAllowed );
+				ImGuiUtils.HelpMarker( Loc.Localize( "Help: Config Options Allow Repeated Speech", "If this is not checked, a given NPC speech bubble will never be repeated in the chat log until you change zones and come back." ) );
 				if( mConfiguration.RepeatsAllowed )
 				{
-					ImGui.Text( "Time before repeated speech can be printed again (sec):" );
-					ImGui.SliderInt( "###Time before the same speech can be printed again.", ref mConfiguration.mTimeBeforeRepeatsAllowed_Sec, 1, 600 );
+					ImGui.Text( Loc.Localize( "Config Option: Time before repeated speech can be printed again (overworld).", "Time before repeated speech can be printed again (sec):" ) );
+					ImGui.SliderInt( "###Time before the same speech can be printed again (overworld).", ref mConfiguration.mTimeBeforeRepeatsAllowed_Sec, 1, 600 );
 				}
 				ImGui.Unindent();
 
@@ -87,12 +103,12 @@ namespace WhatDidYouSay
 
 				ImGui.Text( "Instance:" );
 				ImGui.Indent();
-				ImGui.Checkbox( "Allow repeated speech to print to log.###InInstance", ref mConfiguration.mRepeatsAllowedInInstance );
-				//***** TODO: Add note about always resetting when zoning.
+				ImGui.Checkbox( Loc.Localize( "Config Option: Allow repeated speech to print to log (in-instance).", "Allow repeated speech to print to log." ) + "###Allow repeated speech to print to log (InInstance)", ref mConfiguration.mRepeatsAllowedInInstance );
+				ImGuiUtils.HelpMarker( Loc.Localize( "Help: Config Options Allow Repeated Speech", "If this is not checked, a given NPC speech bubble will never be repeated in the chat log until you change zones and come back." ) );
 				if( mConfiguration.RepeatsAllowedInInstance )
 				{
-					ImGui.Text( "Time before repeated speech can be printed again (sec):" );
-					ImGui.SliderInt( "###Time before the same speech can be printed again in instance.", ref mConfiguration.mTimeBeforeRepeatsAllowedInInstance_Sec, 1, 600 );
+					ImGui.Text( Loc.Localize( "Config Option: Time before repeated speech can be printed again (in-instance).", "Time before repeated speech can be printed again (sec):" ) );
+					ImGui.SliderInt( "###Time before the same speech can be printed again (in instance).", ref mConfiguration.mTimeBeforeRepeatsAllowedInInstance_Sec, 1, 600 );
 				}
 				ImGui.Unindent();
 

@@ -1,5 +1,6 @@
 ﻿using Dalamud.Configuration;
 using Dalamud.Plugin;
+using Dalamud.Game;
 using Newtonsoft.Json;
 using System;
 
@@ -55,6 +56,14 @@ namespace WhatDidYouSay
 		{
 			get { return mMinTimeBetweenChatPrints_mSec; }
 			set { mMinTimeBetweenChatPrints_mSec= value; }
+		}
+
+		//***** TODO: Fix when Dalamud has these chat channels.
+		public int mChatChannelToUse = 0x44;   //	Backing field as an int to work with ImGui.
+		public Dalamud.Game.Text.XivChatType ChatChannelToUse
+		{
+			get { return (Dalamud.Game.Text.XivChatType)mChatChannelToUse; }
+			set { mChatChannelToUse = (int)value; }
 		}
 
 		//  Plugin framework and related convenience functions below.
