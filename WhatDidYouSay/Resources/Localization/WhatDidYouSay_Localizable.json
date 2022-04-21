@@ -16,7 +16,7 @@
     "description": "Plugin.ProcessTextCommand_Help"
   },
   "Window Title: Config": {
-    "message": "\"What did you say?\" Settings",
+    "message": "\"Say What?\" Settings",
     "description": "PluginUI.DrawSettingsWindow"
   },
   "Config Option: Minimum time between log messages.": {
@@ -52,7 +52,7 @@
     "description": "PluginUI.DrawSettingsWindow"
   },
   "Window Title: Debug Data": {
-    "message": "\"What did you say?\" Debug Data",
+    "message": "\"Say What?\" Debug Data",
     "description": "PluginUI.DrawDebugWindow"
   }
 }
