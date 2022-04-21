@@ -1,0 +1,30 @@
+{
+  "Plugin Text Command Description": {
+    "message": "Use {0} to open the the configuration window.",
+    "description": "Plugin.OnLanguageChanged"
+  },
+  "Config Subcommand Help Message": {
+    "message": "Opens the settings window.",
+    "description": "Plugin.ProcessTextCommand_Help"
+  },
+  "Debug Subcommand Help Message": {
+    "message": "Opens a debugging window.",
+    "description": "Plugin.ProcessTextCommand_Help"
+  },
+  "Basic Help Message": {
+    "message": "This plugin works automatically; however, some text commands are supported.  Valid subcommands are {0}.  Use \"{1} <subcommand>\" for more information on each subcommand.",
+    "description": "Plugin.ProcessTextCommand_Help"
+  },
+  "Window Title: Config": {
+    "message": "\"What did you say?\" Settings",
+    "description": "PluginUI.DrawSettingsWindow"
+  },
+  "Button: Save and Close": {
+    "message": "Save and Close",
+    "description": "PluginUI.DrawSettingsWindow"
+  },
+  "Window Title: Debug Data": {
+    "message": "\"What did you say?\" Debug Data",
+    "description": "PluginUI.DrawDebugWindow"
+  }
+}
