@@ -1,25 +1,22 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Threading;
-using System.Threading.Tasks;
 using System.IO;
-using System.Runtime.InteropServices;
 
-using Dalamud.Plugin;
-using Dalamud.Game.ClientState.Conditions;
+using CheapLoc;
+
+using Dalamud.Game;
 using Dalamud.Game.ClientState;
+using Dalamud.Game.ClientState.Conditions;
 using Dalamud.Game.Command;
 using Dalamud.Game.Gui;
-using Dalamud.Game;
-using Dalamud.Game.Text.SeStringHandling;
-using Dalamud.Game.Text.SeStringHandling.Payloads;
 using Dalamud.Logging;
+using Dalamud.Plugin;
+
 using FFXIVClientStructs.FFXIV.Component.GUI;
-using CheapLoc;
 
 namespace WhatDidYouSay
 {
-	public class Plugin : IDalamudPlugin
+	public sealed class Plugin : IDalamudPlugin
 	{
 		//	Initialization
 		public Plugin(
@@ -74,7 +71,7 @@ namespace WhatDidYouSay
 			mUI.Dispose();
 		}
 
-		protected void OnLanguageChanged( string langCode )
+		private void OnLanguageChanged( string langCode )
 		{
 			var allowedLang = new List<string>{ /*"es", "fr", "ja"*/ };
 
@@ -101,7 +98,7 @@ namespace WhatDidYouSay
 		}
 
 		//	Text Commands
-		protected void ProcessTextCommand( string command, string args )
+		private void ProcessTextCommand( string command, string args )
 		{
 			//*****TODO: Don't split, just substring off of the first space so that other stuff is preserved verbatim.
 			//	Seperate into sub-command and paramters.
@@ -155,7 +152,7 @@ namespace WhatDidYouSay
 			}
 		}
 
-		protected string ProcessTextCommand_Help( string args )
+		private string ProcessTextCommand_Help( string args )
 		{
 			if( args.ToLower() == "config" )
 			{
@@ -171,84 +168,129 @@ namespace WhatDidYouSay
 			}
 		}
 
-		protected void DrawUI()
+		private void DrawUI()
 		{
 			mUI.Draw();
 		}
 
-		protected void DrawConfigUI()
+		private void DrawConfigUI()
 		{
 			mUI.SettingsWindowVisible = true;
 		}
 
-		unsafe protected void OnGameFrameworkUpdate( Framework framework )
+		unsafe private void OnGameFrameworkUpdate( Framework framework )
 		{
 			if( !mClientState.IsLoggedIn ) return;
 
+			//	Process the speech bubbles to get their text.
 			var pMiniTalkAddon = (AtkUnitBase*)mGameGui.GetAddonByName( "_MiniTalk", 1 );
 			if( pMiniTalkAddon != null )
 			{
 				bool addonVisible = pMiniTalkAddon->IsVisible;
 
-				for( int i = 0; i < mNPCBubbleStrings.Length; ++i )
+				for( int i = 0; i < mNumScreenTextBubbles; ++i )
 				{
-					var pComponentNode = i+1 < pMiniTalkAddon->UldManager.NodeListCount ? (AtkComponentNode*)pMiniTalkAddon->UldManager.NodeList[i+1] : null;
+					var pComponentNode = i + 1 < pMiniTalkAddon->UldManager.NodeListCount ? (AtkComponentNode*)pMiniTalkAddon->UldManager.NodeList[i+1] : null;
 					var pTextNode = pComponentNode != null && 3 < pComponentNode->Component->UldManager.NodeListCount ? pComponentNode->Component->UldManager.NodeList[3]->GetAsAtkTextNode() : null;
 
-					bool bubbleVisible = false;
 					if( pTextNode != null )
 					{
-						bubbleVisible = ((AtkResNode*)pComponentNode)->IsVisible && ((AtkResNode*)pTextNode)->IsVisible;
-						if( bubbleVisible && !mPreviousNPCBubbleState[i] )
+						if( ( (AtkResNode*)pComponentNode )->IsVisible && ( (AtkResNode*)pTextNode )->IsVisible )
 						{
-							mNPCBubbleStrings_Temp[i] = pTextNode->NodeText.ToString();
-							//mNPCBubbleStrings[i] = SeString.Parse( pTextNode->NodeText.StringPtr, (int)pTextNode->NodeText.StringLength );
+							string bubbleText = pTextNode->NodeText.ToString();
+							long currentTime_mSec = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
 
-							var chatEntry = new Dalamud.Game.Text.XivChatEntry
+							var extantMatch = mSpeechBubbleInfo.Find( ( x ) => { return x.MessageText.Equals( bubbleText, StringComparison.InvariantCulture ); } );
+							if( extantMatch != null )
 							{
-								Type = (Dalamud.Game.Text.XivChatType)0x44,//Dalamud.Game.Text.XivChatType.NPCDialogueAnnouncements,
-								Message = new Dalamud.Game.Text.SeStringHandling.SeString( new List<Dalamud.Game.Text.SeStringHandling.Payload>
-								{
-									new Dalamud.Game.Text.SeStringHandling.Payloads.TextPayload( mNPCBubbleStrings_Temp[i] )
-								} )
-							};
-							mChatGui.PrintChat( chatEntry );
+								extantMatch.TimeLastSeen_mSec = currentTime_mSec;
+							}
+							else
+							{
+								mSpeechBubbleInfo.Add( new( bubbleText, currentTime_mSec ) );
+							}
 						}
 					}
-
-					mPreviousNPCBubbleState[i] = addonVisible && bubbleVisible;
 				}
+			}
+
+			//	Clean up any expired records.
+			for( int i = mSpeechBubbleInfo.Count - 1; i >= 0; --i )
+			{
+				long timeSinceLastSeen_mSec = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - mSpeechBubbleInfo[i].TimeLastSeen_mSec;
+				bool delete_OutOfInstance = mConfiguration.RepeatsAllowed && timeSinceLastSeen_mSec > mConfiguration.TimeBeforeRepeatsAllowed_Sec * 1000;
+				bool delete_InInstance = mConfiguration.RepeatsAllowedInInstance && timeSinceLastSeen_mSec > mConfiguration.TimeBeforeRepeatsAllowedInInstance_Sec * 1000;
+				if( mCondition[ConditionFlag.BoundByDuty] ? delete_InInstance : delete_OutOfInstance )
+				{
+					mSpeechBubbleInfo.RemoveAt( i );
+				}
+			}
+
+			//	Try to print any records that are new.
+			for( int i = 0; i < mSpeechBubbleInfo.Count; ++i )
+			{
+				if( !mSpeechBubbleInfo[i].HasBeenPrinted )
+				{
+					mSpeechBubbleInfo[i].HasBeenPrinted = PrintChatMessage( mSpeechBubbleInfo[i].MessageText );
+				}
+			}
+		}
+
+		private bool PrintChatMessage( string msg )
+		{
+			// Rate limit this as a last resort in case we messed up.
+			long currentTime_mSec = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+			if( currentTime_mSec - mLastTimeChatPrinted_mSec >= mConfiguration.MinTimeBetweenChatPrints_mSec )
+			{
+				var chatEntry = new Dalamud.Game.Text.XivChatEntry
+				{
+					Type = (Dalamud.Game.Text.XivChatType)0x44,//Dalamud.Game.Text.XivChatType.NPCDialogueAnnouncements,	//***** TODO: Make chat channel configurable.
+					Message = new Dalamud.Game.Text.SeStringHandling.SeString( new List<Dalamud.Game.Text.SeStringHandling.Payload>
+				{
+					new Dalamud.Game.Text.SeStringHandling.Payloads.TextPayload( msg )
+				} )
+				};
+
+				mChatGui.PrintChat( chatEntry );
+				mLastTimeChatPrinted_mSec = currentTime_mSec;
+				return true;
 			}
 			else
 			{
-				for( int i = 0; i < mPreviousNPCBubbleState.Length; ++i )
-				{
-					mPreviousNPCBubbleState[i] = false;
-				}
+				return false;
 			}
 		}
 
-		protected void OnTerritoryChanged( object sender, UInt16 ID )
+		private void OnTerritoryChanged( object sender, UInt16 ID )
 		{
-			//***** TODO: Clear the previously seen text lookup list
+			ClearSpeechBubbleHistory();
+		}
+
+		internal void ClearSpeechBubbleHistory()
+		{
+			mSpeechBubbleInfo.Clear();
+		}
+
+		internal List<SpeechBubbleInfo> GetSpeechBubbleInfo_DEBUG()
+		{
+			return new( mSpeechBubbleInfo );
 		}
 
 		public string Name => "WhatDidYouSay";
-		protected const string mTextCommandName = "/saywhat";
-		protected PluginUI mUI;
-		protected Configuration mConfiguration;
+		private const string mTextCommandName = "/saywhat";
+		private const int mNumScreenTextBubbles = 10;
 
-		protected const int mNumScreenTextBubbles = 10;
-		public SeString[] mNPCBubbleStrings = new SeString[mNumScreenTextBubbles];
-		public string[] mNPCBubbleStrings_Temp = new string[mNumScreenTextBubbles];
-		public bool[] mPreviousNPCBubbleState = new bool[mNumScreenTextBubbles];
+		private readonly PluginUI mUI;
+		private readonly Configuration mConfiguration;
+		private readonly List<SpeechBubbleInfo> mSpeechBubbleInfo = new();
+		private long mLastTimeChatPrinted_mSec;
 
-		protected DalamudPluginInterface mPluginInterface;
-		protected Framework mFramework;
-		protected ClientState mClientState;
-		protected CommandManager mCommandManager;
-		protected Condition mCondition;
-		protected ChatGui mChatGui;
-		protected GameGui mGameGui;
+		private readonly DalamudPluginInterface mPluginInterface;
+		private readonly Framework mFramework;
+		private readonly ClientState mClientState;
+		private readonly CommandManager mCommandManager;
+		private readonly Condition mCondition;
+		private readonly ChatGui mChatGui;
+		private readonly GameGui mGameGui;
 	}
 }

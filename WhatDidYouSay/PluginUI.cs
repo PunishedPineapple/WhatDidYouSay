@@ -58,7 +58,43 @@ namespace WhatDidYouSay
 			if( ImGui.Begin( Loc.Localize( "Window Title: Config", "\"What did you say?\" Settings" ) + "###\"What did you say?\" Settings",
 				ImGuiWindowFlags.AlwaysAutoResize | ImGuiWindowFlags.NoCollapse | ImGuiWindowFlags.NoScrollbar | ImGuiWindowFlags.NoScrollWithMouse ) )
 			{
-				ImGui.Text( "BorkBorkBork" );
+				//***** TODO: Localization.
+				ImGui.Text( "Minimum time between log messages (msec):" );
+				ImGui.SliderInt( "###Minimum time between any log messages.", ref mConfiguration.mMinTimeBetweenChatPrints_mSec, 0, 2000 );
+
+				ImGui.Spacing();
+				ImGui.Spacing();
+				ImGui.Spacing();
+				ImGui.Spacing();
+				ImGui.Spacing();
+
+				ImGui.Text( "Overworld:" );
+				ImGui.Indent();
+				ImGui.Checkbox( "Allow repeated speech to print to log.", ref mConfiguration.mRepeatsAllowed );
+				//***** TODO: Add note about always resetting when zoning.
+				if( mConfiguration.RepeatsAllowed )
+				{
+					ImGui.Text( "Time before repeated speech can be printed again (sec):" );
+					ImGui.SliderInt( "###Time before the same speech can be printed again.", ref mConfiguration.mTimeBeforeRepeatsAllowed_Sec, 1, 600 );
+				}
+				ImGui.Unindent();
+
+				ImGui.Spacing();
+				ImGui.Spacing();
+				ImGui.Spacing();
+				ImGui.Spacing();
+				ImGui.Spacing();
+
+				ImGui.Text( "Instance:" );
+				ImGui.Indent();
+				ImGui.Checkbox( "Allow repeated speech to print to log.###InInstance", ref mConfiguration.mRepeatsAllowedInInstance );
+				//***** TODO: Add note about always resetting when zoning.
+				if( mConfiguration.RepeatsAllowedInInstance )
+				{
+					ImGui.Text( "Time before repeated speech can be printed again (sec):" );
+					ImGui.SliderInt( "###Time before the same speech can be printed again in instance.", ref mConfiguration.mTimeBeforeRepeatsAllowedInInstance_Sec, 1, 600 );
+				}
+				ImGui.Unindent();
 
 				ImGui.Spacing();
 				ImGui.Spacing();
@@ -101,9 +137,21 @@ namespace WhatDidYouSay
 					Directory.SetCurrentDirectory( pwd );
 				}
 
-				for( int i = 0; i < mPlugin.mNPCBubbleStrings.Length; ++i )
+				if( ImGui.Button( "Reset seen speech history" ) )
 				{
-					ImGui.Text( $"Was Visible: {mPlugin.mPreviousNPCBubbleState[i]}, Text: {mPlugin.mNPCBubbleStrings_Temp[i]}" );
+					mPlugin.ClearSpeechBubbleHistory();
+				}
+
+				ImGui.Spacing();
+				ImGui.Spacing();
+				ImGui.Spacing();
+				ImGui.Spacing();
+				ImGui.Spacing();
+
+				var entries = mPlugin.GetSpeechBubbleInfo_DEBUG();
+				foreach( var entry in entries )
+				{
+					ImGui.Text( $"String: {entry.MessageText}, Time Last Seen: {entry.TimeLastSeen_mSec}, Has Been Printed {entry.HasBeenPrinted}" );
 				}
 			}
 

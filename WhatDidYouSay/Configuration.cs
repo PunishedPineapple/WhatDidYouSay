@@ -22,6 +22,41 @@ namespace WhatDidYouSay
 			set { mSuppressCommandLineResponses = value; }
 		}
 
+		public bool mRepeatsAllowed = false;
+		public bool RepeatsAllowed
+		{
+			get { return mRepeatsAllowed; }
+			set { mRepeatsAllowed = value; }
+		}
+
+		public bool mRepeatsAllowedInInstance = false;
+		public bool RepeatsAllowedInInstance
+		{
+			get { return mRepeatsAllowedInInstance; }
+			set { mRepeatsAllowedInInstance = value; }
+		}
+
+		public int mTimeBeforeRepeatsAllowed_Sec = 5;
+		public int TimeBeforeRepeatsAllowed_Sec
+		{
+			get { return mTimeBeforeRepeatsAllowed_Sec; }
+			set { mTimeBeforeRepeatsAllowed_Sec = value; }
+		}
+
+		public int mTimeBeforeRepeatsAllowedInInstance_Sec = 1;
+		public int TimeBeforeRepeatsAllowedInInstance_Sec
+		{
+			get { return mTimeBeforeRepeatsAllowedInInstance_Sec; }
+			set { mTimeBeforeRepeatsAllowedInInstance_Sec = value; }
+		}
+
+		public int mMinTimeBetweenChatPrints_mSec = 500;
+		public int MinTimeBetweenChatPrints_mSec
+		{
+			get { return mMinTimeBetweenChatPrints_mSec; }
+			set { mMinTimeBetweenChatPrints_mSec= value; }
+		}
+
 		//  Plugin framework and related convenience functions below.
 		public void Initialize( DalamudPluginInterface pluginInterface )
 		{
