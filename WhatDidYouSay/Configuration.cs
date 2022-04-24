@@ -1,8 +1,7 @@
-﻿using Dalamud.Configuration;
+﻿using System;
+
+using Dalamud.Configuration;
 using Dalamud.Plugin;
-using Dalamud.Game;
-using Newtonsoft.Json;
-using System;
 
 namespace WhatDidYouSay
 {
@@ -21,6 +20,13 @@ namespace WhatDidYouSay
 		{
 			get { return mSuppressCommandLineResponses; }
 			set { mSuppressCommandLineResponses = value; }
+		}
+
+		public bool mKeepLineBreaks = false;
+		public bool KeepLineBreaks
+		{
+			get { return mKeepLineBreaks; }
+			set { mKeepLineBreaks = value; }
 		}
 
 		public bool mRepeatsAllowed = false;

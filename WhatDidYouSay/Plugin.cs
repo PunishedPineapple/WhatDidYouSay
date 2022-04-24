@@ -38,7 +38,6 @@ namespace WhatDidYouSay
 			mGameGui			= gameGui;
 
 			//	Configuration
-			mPluginInterface = pluginInterface;
 			mConfiguration = mPluginInterface.GetPluginConfig() as Configuration ?? new Configuration();
 			mConfiguration.Initialize( mPluginInterface );
 
@@ -93,7 +92,7 @@ namespace WhatDidYouSay
 			}
 			mCommandManager.AddHandler( mTextCommandName, new CommandInfo( ProcessTextCommand )
 			{
-				HelpMessage = String.Format( Loc.Localize( "Plugin Text Command Description", "Use {0} to open the the configuration window." ), "\"/whatdidyousay config\"" )
+				HelpMessage = String.Format( Loc.Localize( "Plugin Text Command Description", "Use \"{0}\" to open the the configuration window." ), mTextCommandName + " config" )
 			} );
 		}
 
@@ -238,7 +237,13 @@ namespace WhatDidYouSay
 
 		private bool PrintChatMessage( string msg )
 		{
-			// Rate limit this as a last resort in case we messed up.
+			//	Remove line breaks if desired.  SE uses a few different line breaks and control sequences for this it seems.
+			if( !mConfiguration.KeepLineBreaks )
+			{
+				msg = msg.Replace( "\r\n", " " ).Replace( "\r", " " ).Replace( "\n", " " ).Replace( "\u0002\u0010\u0001\u0003", "" );
+			}
+
+			//	Rate limit this as a last resort in case we messed up.
 			long currentTime_mSec = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
 			if( currentTime_mSec - mLastTimeChatPrinted_mSec >= mConfiguration.MinTimeBetweenChatPrints_mSec )
 			{

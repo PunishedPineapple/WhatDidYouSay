@@ -1,22 +1,12 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Numerics;
-using System.Linq;
-using System.Globalization;
 using System.IO;
+using System.Numerics;
+
+using CheapLoc;
+
+using Dalamud.Plugin;
 
 using ImGuiNET;
-using ImGuiScene;
-using Lumina.Excel;
-using Lumina.Excel.GeneratedSheets;
-using Dalamud.Plugin;
-using Dalamud.Data;
-using Dalamud.Game.Gui;
-using Dalamud.Interface;
-using Dalamud.Game;
-using Dalamud.Memory;
-using FFXIVClientStructs.FFXIV.Component.GUI;
-using CheapLoc;
 
 namespace WhatDidYouSay
 {
@@ -58,14 +48,7 @@ namespace WhatDidYouSay
 			if( ImGui.Begin( Loc.Localize( "Window Title: Config", "\"Say What?\" Settings" ) + "###\"Say What?\" Settings",
 				ImGuiWindowFlags.AlwaysAutoResize | ImGuiWindowFlags.NoCollapse | ImGuiWindowFlags.NoScrollbar | ImGuiWindowFlags.NoScrollWithMouse ) )
 			{
-				ImGui.Text( Loc.Localize( "Config Option: Minimum time between log messages.", "Minimum time between log messages (msec):" ) );
-				ImGui.SliderInt( "###Minimum time between any log messages.", ref mConfiguration.mMinTimeBetweenChatPrints_mSec, 0, 2000 );
-
-				ImGui.Spacing();
-				ImGui.Spacing();
-				ImGui.Spacing();
-				ImGui.Spacing();
-				ImGui.Spacing();
+				ImGui.Checkbox( Loc.Localize( "Config Option: Keep Line Breaks", "Keep line breaks." ) + "###Keep line breaks.", ref mConfiguration.mKeepLineBreaks );
 
 				//***** TODO: Revisit this when Dalamud has the right chat type enums.
 				ImGui.Text( Loc.Localize( "Config Option: Log message channel.", "Log channel to use:" ) );
@@ -77,6 +60,9 @@ namespace WhatDidYouSay
 				};
 				ImGui.Combo( "###Chat Channel Dropdown", ref selectedIndex, comboItems, comboItems.Length );
 				mConfiguration.mChatChannelToUse = selectedIndex == 1 ? 0x44 : 0x3D;
+
+				ImGui.Text( Loc.Localize( "Config Option: Minimum time between log messages.", "Minimum time between log messages (msec):" ) );
+				ImGui.SliderInt( "###Minimum time between any log messages.", ref mConfiguration.mMinTimeBetweenChatPrints_mSec, 0, 2000 );
 
 				ImGui.Spacing();
 				ImGui.Spacing();
