@@ -179,6 +179,7 @@ namespace WhatDidYouSay
 
 		unsafe private void OnGameFrameworkUpdate( Framework framework )
 		{
+			if( mClientState.IsPvP ) return;
 			if( !mClientState.IsLoggedIn ) return;
 
 			//	Process the speech bubbles to get their text.
