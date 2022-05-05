@@ -153,7 +153,7 @@ namespace WhatDidYouSay
 				var entries = mPlugin.GetSpeechBubbleInfo_DEBUG();
 				foreach( var entry in entries )
 				{
-					ImGui.Text( $"String: {entry.MessageText}, Time Last Seen: {entry.TimeLastSeen_mSec}, Has Been Printed {entry.HasBeenPrinted}" );
+					ImGui.Text( $"String: {entry.MessageText}, Speaker: {entry.SpeakerName}, Time Last Seen: {entry.TimeLastSeen_mSec}, Has Been Printed {entry.HasBeenPrinted}" );
 				}
 			}
 

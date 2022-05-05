@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Runtime.InteropServices;
 
 using CheapLoc;
 
@@ -9,10 +10,13 @@ using Dalamud.Game.ClientState;
 using Dalamud.Game.ClientState.Conditions;
 using Dalamud.Game.Command;
 using Dalamud.Game.Gui;
+using Dalamud.Hooking;
 using Dalamud.Logging;
 using Dalamud.Plugin;
+using Dalamud.Memory;
 
 using FFXIVClientStructs.FFXIV.Component.GUI;
+using FFXIVClientStructs.FFXIV.Client.Game.Object;
 
 namespace WhatDidYouSay
 {
@@ -22,6 +26,7 @@ namespace WhatDidYouSay
 		public Plugin(
 			DalamudPluginInterface pluginInterface,
 			Framework framework,
+			SigScanner sigScanner,
 			ClientState clientState,
 			CommandManager commandManager,
 			Condition condition,
@@ -44,12 +49,28 @@ namespace WhatDidYouSay
 			//	Localization and Command Initialization
 			OnLanguageChanged( mPluginInterface.UiLanguage );
 
+			//	Hook
+			unsafe
+			{
+				IntPtr fpOpenChatBubble = sigScanner.ScanText( "E8 ?? ?? ?? ?? F6 86 ?? ?? ?? ?? ?? C7 46 ?? ?? ?? ?? ??" );
+				if( fpOpenChatBubble != IntPtr.Zero )
+				{
+					PluginLog.LogInformation( $"OpenChatBubble function signature found at 0x{fpOpenChatBubble:X}." );
+					OpenChatBubbleDelegate dOpenChatBubble = OpenChatBubbleDetour;
+					mOpenChatBubbleHook = new( fpOpenChatBubble, dOpenChatBubble );
+					mOpenChatBubbleHook.Enable();
+				}
+				else
+				{
+					throw new Exception( "Unable to find the specified function signature for OpenChatBubble." );
+				}
+			}
+
 			//	UI Initialization
 			mUI = new PluginUI( this, mConfiguration, mPluginInterface );
 			mPluginInterface.UiBuilder.Draw += DrawUI;
 			mPluginInterface.UiBuilder.OpenConfigUi += DrawConfigUI;
 			mUI.Initialize();
-
 
 			//	Event Subscription
 			mPluginInterface.LanguageChanged += OnLanguageChanged;
@@ -60,6 +81,9 @@ namespace WhatDidYouSay
 		//	Cleanup
 		public void Dispose()
 		{
+			mOpenChatBubbleHook?.Disable();
+			mOpenChatBubbleHook?.Dispose();
+
 			mFramework.Update -= OnGameFrameworkUpdate;
 			mClientState.TerritoryChanged -= OnTerritoryChanged;
 			mPluginInterface.LanguageChanged -= OnLanguageChanged;
@@ -67,7 +91,7 @@ namespace WhatDidYouSay
 			mPluginInterface.UiBuilder.OpenConfigUi -= DrawConfigUI;
 			mCommandManager.RemoveHandler( mTextCommandName );
 
-			mUI.Dispose();
+			mUI?.Dispose();
 		}
 
 		private void OnLanguageChanged( string langCode )
@@ -177,66 +201,69 @@ namespace WhatDidYouSay
 			mUI.SettingsWindowVisible = true;
 		}
 
-		unsafe private void OnGameFrameworkUpdate( Framework framework )
+		unsafe private IntPtr OpenChatBubbleDetour( IntPtr pThis, GameObject* pActor, IntPtr pString, bool param3 )
 		{
-			if( mClientState.IsPvP ) return;
-			if( !mClientState.IsLoggedIn ) return;
-
-			//	Process the speech bubbles to get their text.
-			var pMiniTalkAddon = (AtkUnitBase*)mGameGui.GetAddonByName( "_MiniTalk", 1 );
-			if( pMiniTalkAddon != null )
+			if( pString != IntPtr.Zero && !mClientState.IsPvP )
 			{
-				bool addonVisible = pMiniTalkAddon->IsVisible;
-
-				for( int i = 0; i < mNumScreenTextBubbles; ++i )
+				//	Idk if the actor can ever be null, but if it can, assume that we should print the bubble just in case.  Otherwise, only don't print if the actor is a player.
+				if( pActor == null || pActor->ObjectKind != (byte)Dalamud.Game.ClientState.Objects.Enums.ObjectKind.Player )
 				{
-					var pComponentNode = i + 1 < pMiniTalkAddon->UldManager.NodeListCount ? (AtkComponentNode*)pMiniTalkAddon->UldManager.NodeList[i+1] : null;
-					var pTextNode = pComponentNode != null && 3 < pComponentNode->Component->UldManager.NodeListCount ? pComponentNode->Component->UldManager.NodeList[3]->GetAsAtkTextNode() : null;
-
-					if( pTextNode != null )
+					long currentTime_mSec = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+					var bubbleInfo = new SpeechBubbleInfo( Marshal.PtrToStringUTF8( pString ), currentTime_mSec );
+					if( pActor != null && pActor->GetName() != null )
 					{
-						if( ( (AtkResNode*)pComponentNode )->IsVisible && ( (AtkResNode*)pTextNode )->IsVisible )
-						{
-							string bubbleText = pTextNode->NodeText.ToString();
-							long currentTime_mSec = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+						bubbleInfo.SpeakerName = MemoryHelper.ReadSeStringNullTerminated( (IntPtr)pActor->GetName() ).ToString();
+					}
 
-							var extantMatch = mSpeechBubbleInfo.Find( ( x ) => { return x.MessageText.Equals( bubbleText, StringComparison.InvariantCulture ); } );
-							if( extantMatch != null )
-							{
-								extantMatch.TimeLastSeen_mSec = currentTime_mSec;
-							}
-							else
-							{
-								mSpeechBubbleInfo.Add( new( bubbleText, currentTime_mSec ) );
-							}
+					lock( mSpeechBubbleInfoLockObj )
+					{
+						var extantMatch = mSpeechBubbleInfo.Find( ( x ) => { return x.MessageText.Equals( bubbleInfo.MessageText, StringComparison.InvariantCulture ); } );
+						if( extantMatch != null )
+						{
+							extantMatch.TimeLastSeen_mSec = currentTime_mSec;
+						}
+						else
+						{
+
+							mSpeechBubbleInfo.Add( bubbleInfo );
 						}
 					}
 				}
 			}
 
-			//	Clean up any expired records.
-			for( int i = mSpeechBubbleInfo.Count - 1; i >= 0; --i )
-			{
-				long timeSinceLastSeen_mSec = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - mSpeechBubbleInfo[i].TimeLastSeen_mSec;
-				bool delete_OutOfInstance = mConfiguration.RepeatsAllowed && timeSinceLastSeen_mSec > mConfiguration.TimeBeforeRepeatsAllowed_Sec * 1000;
-				bool delete_InInstance = mConfiguration.RepeatsAllowedInInstance && timeSinceLastSeen_mSec > mConfiguration.TimeBeforeRepeatsAllowedInInstance_Sec * 1000;
-				if( mCondition[ConditionFlag.BoundByDuty] ? delete_InInstance : delete_OutOfInstance )
-				{
-					mSpeechBubbleInfo.RemoveAt( i );
-				}
-			}
+			return mOpenChatBubbleHook.Original( pThis, pActor, pString, param3 );
+		}
 
-			//	Try to print any records that are new.
-			for( int i = 0; i < mSpeechBubbleInfo.Count; ++i )
+		unsafe private void OnGameFrameworkUpdate( Framework framework )
+		{
+			if( !mClientState.IsLoggedIn ) return;
+
+			lock( mSpeechBubbleInfoLockObj )
 			{
-				if( !mSpeechBubbleInfo[i].HasBeenPrinted )
+				//	Clean up any expired records.
+				for( int i = mSpeechBubbleInfo.Count - 1; i >= 0; --i )
 				{
-					mSpeechBubbleInfo[i].HasBeenPrinted = PrintChatMessage( mSpeechBubbleInfo[i].MessageText );
+					long timeSinceLastSeen_mSec = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - mSpeechBubbleInfo[i].TimeLastSeen_mSec;
+					bool delete_OutOfInstance = mConfiguration.RepeatsAllowed && timeSinceLastSeen_mSec > mConfiguration.TimeBeforeRepeatsAllowed_Sec * 1000;
+					bool delete_InInstance = mConfiguration.RepeatsAllowedInInstance && timeSinceLastSeen_mSec > mConfiguration.TimeBeforeRepeatsAllowedInInstance_Sec * 1000;
+					if( mCondition[ConditionFlag.BoundByDuty] ? delete_InInstance : delete_OutOfInstance )
+					{
+						mSpeechBubbleInfo.RemoveAt( i );
+					}
+				}
+
+				//	Try to print any records that are new.
+				for( int i = 0; i < mSpeechBubbleInfo.Count; ++i )
+				{
+					if( !mSpeechBubbleInfo[i].HasBeenPrinted )
+					{
+						mSpeechBubbleInfo[i].HasBeenPrinted = PrintChatMessage( mSpeechBubbleInfo[i].MessageText, mSpeechBubbleInfo[i].SpeakerName );
+					}
 				}
 			}
 		}
 
-		private bool PrintChatMessage( string msg )
+		private bool PrintChatMessage( string msg, string speakerName )
 		{
 			//	Remove line breaks if desired.  SE uses a few different line breaks and control sequences for this it seems.
 			if( !mConfiguration.KeepLineBreaks )
@@ -251,6 +278,7 @@ namespace WhatDidYouSay
 				var chatEntry = new Dalamud.Game.Text.XivChatEntry
 				{
 					Type = mConfiguration.ChatChannelToUse,
+					Name = speakerName,
 					Message = new Dalamud.Game.Text.SeStringHandling.SeString( new List<Dalamud.Game.Text.SeStringHandling.Payload>
 				{
 					new Dalamud.Game.Text.SeStringHandling.Payloads.TextPayload( msg )
@@ -274,12 +302,18 @@ namespace WhatDidYouSay
 
 		internal void ClearSpeechBubbleHistory()
 		{
-			mSpeechBubbleInfo.Clear();
+			lock( mSpeechBubbleInfoLockObj )
+			{
+				mSpeechBubbleInfo.Clear();
+			}
 		}
 
 		internal List<SpeechBubbleInfo> GetSpeechBubbleInfo_DEBUG()
 		{
-			return new( mSpeechBubbleInfo );
+			lock( mSpeechBubbleInfo )
+			{
+				return new( mSpeechBubbleInfo );
+			}
 		}
 
 		public string Name => "WhatDidYouSay";
@@ -288,6 +322,11 @@ namespace WhatDidYouSay
 
 		private readonly PluginUI mUI;
 		private readonly Configuration mConfiguration;
+
+		private unsafe delegate IntPtr OpenChatBubbleDelegate( IntPtr pThis, GameObject* pActor, IntPtr pString, bool param3 );
+		private Hook<OpenChatBubbleDelegate> mOpenChatBubbleHook;
+
+		private readonly Object mSpeechBubbleInfoLockObj = new();
 		private readonly List<SpeechBubbleInfo> mSpeechBubbleInfo = new();
 		private long mLastTimeChatPrinted_mSec;
 

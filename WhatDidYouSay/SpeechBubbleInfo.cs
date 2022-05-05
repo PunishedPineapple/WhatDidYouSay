@@ -12,6 +12,7 @@
 
 		public long TimeLastSeen_mSec { get; set; }
 		public bool HasBeenPrinted { get; set; }
+		public string SpeakerName { get; set; }
 		public string MessageText { get; set; }
 	}
 }
