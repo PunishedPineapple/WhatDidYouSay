@@ -48,10 +48,10 @@ namespace WhatDidYouSay
 			if( ImGui.Begin( Loc.Localize( "Window Title: Config", "\"Say What?\" Settings" ) + "###\"Say What?\" Settings",
 				ImGuiWindowFlags.AlwaysAutoResize | ImGuiWindowFlags.NoCollapse | ImGuiWindowFlags.NoScrollbar | ImGuiWindowFlags.NoScrollWithMouse ) )
 			{
-				ImGui.Checkbox( Loc.Localize( "Config Option: Keep Line Breaks", "Keep line breaks." ) + "###Keep line breaks.", ref mConfiguration.mKeepLineBreaks );
+				
 
 				//***** TODO: Revisit this when Dalamud has the right chat type enums.
-				ImGui.Text( Loc.Localize( "Config Option: Log message channel.", "Log channel to use:" ) );
+				ImGui.Text( Loc.Localize( "Config Option: Log message channel.", "Log channel for output:" ) );
 				int selectedIndex = mConfiguration.mChatChannelToUse == 0x44 ? 1 : 0;
 				string[] comboItems = new string[]
 				{
@@ -60,6 +60,12 @@ namespace WhatDidYouSay
 				};
 				ImGui.Combo( "###Chat Channel Dropdown", ref selectedIndex, comboItems, comboItems.Length );
 				mConfiguration.mChatChannelToUse = selectedIndex == 1 ? 0x44 : 0x3D;
+
+				ImGui.Spacing();
+				ImGui.Spacing();
+				ImGui.Spacing();
+				ImGui.Spacing();
+				ImGui.Spacing();
 
 				ImGui.Text( Loc.Localize( "Config Option: Minimum time between log messages.", "Minimum time between log messages (msec):" ) );
 				ImGui.SliderInt( "###Minimum time between any log messages.", ref mConfiguration.mMinTimeBetweenChatPrints_mSec, 0, 2000 );
@@ -70,7 +76,28 @@ namespace WhatDidYouSay
 				ImGui.Spacing();
 				ImGui.Spacing();
 
-				ImGui.Text( "Overworld:" );
+				ImGui.Checkbox( Loc.Localize( "Config Option: Keep Line Breaks", "Keep line breaks." ) + "###Keep line breaks.", ref mConfiguration.mKeepLineBreaks );
+
+				ImGui.Spacing();
+				ImGui.Spacing();
+				ImGui.Spacing();
+				ImGui.Spacing();
+				ImGui.Spacing();
+
+				ImGui.Text( Loc.Localize( "Config Section: Prevent Duplicate Messages", "Prevent duplicate messages from:" ) );
+				ImGuiUtils.HelpMarker( Loc.Localize( "Help: Prevent Duplicate Messages", "Checking the box for the specified chat channel ensures that NPC speech bubbles with the same content as a message already printed by the game in that channel will not be duplicated.  The usefulness of these options depends upon how your chat filters are configured." ) );
+				ImGui.Indent();
+				ImGui.Checkbox( Loc.Localize( "Config Option: Prevent Duplicate Messages (NPC Dialogue)", "NPC Dialogue" ) + "###Prevent Duplicate Messages (NPC Dialogue)", ref mConfiguration.mIgnoreIfAlreadyInChat_NPCDialogue );
+				ImGui.Checkbox( Loc.Localize( "Config Option: Prevent Duplicate Messages (NPC Dialogue (Announcements))", "NPC Dialogue (Announcements)" ) + "###Prevent Duplicate Messages (NPC Dialogue (Announcements))", ref mConfiguration.mIgnoreIfAlreadyInChat_NPCDialogueAnnouncements );
+				ImGui.Unindent();
+
+				ImGui.Spacing();
+				ImGui.Spacing();
+				ImGui.Spacing();
+				ImGui.Spacing();
+				ImGui.Spacing();
+
+				ImGui.Text( Loc.Localize( "Config Section: Overworld", "Overworld:" ) );
 				ImGui.Indent();
 				ImGui.Checkbox( Loc.Localize( "Config Option: Allow repeated speech to print to log (overworld).", "Allow repeated speech to print to log." ) + "###Allow repeated speech to print to log (overworld).", ref mConfiguration.mRepeatsAllowed );
 				ImGuiUtils.HelpMarker( Loc.Localize( "Help: Config Options Allow Repeated Speech", "If this is not checked, a given NPC speech bubble will never be repeated in the chat log until you change zones and come back." ) );
@@ -87,7 +114,7 @@ namespace WhatDidYouSay
 				ImGui.Spacing();
 				ImGui.Spacing();
 
-				ImGui.Text( "Instance:" );
+				ImGui.Text( Loc.Localize( "Config Section: Instance", "In Instance:" ) );
 				ImGui.Indent();
 				ImGui.Checkbox( Loc.Localize( "Config Option: Allow repeated speech to print to log (in-instance).", "Allow repeated speech to print to log." ) + "###Allow repeated speech to print to log (InInstance)", ref mConfiguration.mRepeatsAllowedInInstance );
 				ImGuiUtils.HelpMarker( Loc.Localize( "Help: Config Options Allow Repeated Speech", "If this is not checked, a given NPC speech bubble will never be repeated in the chat log until you change zones and come back." ) );
@@ -153,6 +180,26 @@ namespace WhatDidYouSay
 				var entries = mPlugin.GetSpeechBubbleInfo_DEBUG();
 				foreach( var entry in entries )
 				{
+					ImGui.Text( $"String: {entry.MessageText}, Speaker: {entry.SpeakerName}, Time Last Seen: {entry.TimeLastSeen_mSec}, Has Been Printed {entry.HasBeenPrinted}" );
+				}
+
+				if( ImGui.Button( "Seen chat messages" ) )
+				{
+				}
+
+				ImGui.Spacing();
+				ImGui.Spacing();
+				ImGui.Spacing();
+				ImGui.Spacing();
+				ImGui.Spacing();
+
+				foreach( var entry in mPlugin.GetGameChatInfo_DEBUG() )
+				{
+					if( ImGui.Button( $"P###btn{entry.GetHashCode()}" ) )
+					{
+						mPlugin.PrintChatMessage_DEBUG( entry.MessageText, entry.SpeakerName );
+					}
+					ImGui.SameLine();
 					ImGui.Text( $"String: {entry.MessageText}, Speaker: {entry.SpeakerName}, Time Last Seen: {entry.TimeLastSeen_mSec}, Has Been Printed {entry.HasBeenPrinted}" );
 				}
 			}

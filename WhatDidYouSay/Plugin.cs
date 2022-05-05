@@ -76,6 +76,7 @@ namespace WhatDidYouSay
 			mPluginInterface.LanguageChanged += OnLanguageChanged;
 			mClientState.TerritoryChanged += OnTerritoryChanged;
 			mFramework.Update += OnGameFrameworkUpdate;
+			mChatGui.ChatMessage += OnChatMessage;
 		}
 
 		//	Cleanup
@@ -84,6 +85,7 @@ namespace WhatDidYouSay
 			mOpenChatBubbleHook?.Disable();
 			mOpenChatBubbleHook?.Dispose();
 
+			mChatGui.ChatMessage -= OnChatMessage;
 			mFramework.Update -= OnGameFrameworkUpdate;
 			mClientState.TerritoryChanged -= OnTerritoryChanged;
 			mPluginInterface.LanguageChanged -= OnLanguageChanged;
@@ -217,14 +219,13 @@ namespace WhatDidYouSay
 
 					lock( mSpeechBubbleInfoLockObj )
 					{
-						var extantMatch = mSpeechBubbleInfo.Find( ( x ) => { return x.MessageText.Equals( bubbleInfo.MessageText, StringComparison.InvariantCulture ); } );
+						var extantMatch = mSpeechBubbleInfo.Find( ( x ) => { return x.IsSameMessageAs( bubbleInfo ); } );
 						if( extantMatch != null )
 						{
 							extantMatch.TimeLastSeen_mSec = currentTime_mSec;
 						}
 						else
 						{
-
 							mSpeechBubbleInfo.Add( bubbleInfo );
 						}
 					}
@@ -232,6 +233,32 @@ namespace WhatDidYouSay
 			}
 
 			return mOpenChatBubbleHook.Original( pThis, pActor, pString, param3 );
+		}
+
+		private void OnChatMessage( Dalamud.Game.Text.XivChatType type, UInt32 senderId, ref Dalamud.Game.Text.SeStringHandling.SeString sender, ref Dalamud.Game.Text.SeStringHandling.SeString message, ref bool isHandled )
+		{
+			//	We want to keep a short record of NPC dialogue messages that the game sends itself, because
+			//	in some cases, these can duplicate speech bubbles.  We'll use these to avoid duplicate log lines.
+			if( senderId != mOurFakeSenderID )
+			{
+				if( (UInt16)type == 0x3D && mConfiguration.IgnoreIfAlreadyInChat_NPCDialogue )  //***** TODO: Fix when enum updated in Dalamud.
+				{
+					lock( mGameChatInfoLockObj )
+					{
+						mGameChatInfo.Add( new( System.Text.Encoding.UTF8.GetString( message.Encode() ), DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), System.Text.Encoding.UTF8.GetString( sender.Encode() ) ) );
+					}
+					return;
+				}
+
+				if( (UInt16)type == 0x44 && mConfiguration.IgnoreIfAlreadyInChat_NPCDialogueAnnouncements ) //***** TODO: Fix when enum updated in Dalamud.
+				{
+					lock( mGameChatInfoLockObj )
+					{
+						mGameChatInfo.Add( new( System.Text.Encoding.UTF8.GetString( message.Encode() ), DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), System.Text.Encoding.UTF8.GetString( sender.Encode() ) ) );
+					}
+					return;
+				}
+			}
 		}
 
 		unsafe private void OnGameFrameworkUpdate( Framework framework )
@@ -251,13 +278,41 @@ namespace WhatDidYouSay
 						mSpeechBubbleInfo.RemoveAt( i );
 					}
 				}
+			}
 
+			lock( mGameChatInfoLockObj )
+			{
+				//	Clean up any expired records.
+				for( int i = mGameChatInfo.Count - 1; i >= 0; --i )
+				{
+					long timeSinceLastSeen_mSec = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - mGameChatInfo[i].TimeLastSeen_mSec;
+					if( timeSinceLastSeen_mSec > 5000 )
+					{
+						mGameChatInfo.RemoveAt( i );
+					}
+				}
+			}
+
+			lock( mSpeechBubbleInfoLockObj )
+			{
 				//	Try to print any records that are new.
 				for( int i = 0; i < mSpeechBubbleInfo.Count; ++i )
 				{
 					if( !mSpeechBubbleInfo[i].HasBeenPrinted )
 					{
-						mSpeechBubbleInfo[i].HasBeenPrinted = PrintChatMessage( mSpeechBubbleInfo[i].MessageText, mSpeechBubbleInfo[i].SpeakerName );
+						SpeechBubbleInfo matchingChatEntry = null;
+						lock( mGameChatInfoLockObj )
+						{
+							matchingChatEntry = mGameChatInfo.Find( ( x ) => { return x.IsSameMessageAs( mSpeechBubbleInfo[i] ); } );
+						}
+						if( matchingChatEntry != null )
+						{
+							mSpeechBubbleInfo[i].HasBeenPrinted = true;
+						}
+						else
+						{
+							mSpeechBubbleInfo[i].HasBeenPrinted = PrintChatMessage( mSpeechBubbleInfo[i].MessageText, mSpeechBubbleInfo[i].SpeakerName );
+						}
 					}
 				}
 			}
@@ -265,10 +320,10 @@ namespace WhatDidYouSay
 
 		private bool PrintChatMessage( string msg, string speakerName )
 		{
-			//	Remove line breaks if desired.  SE uses a few different line breaks and control sequences for this it seems.
+			//	Remove line breaks if desired.
 			if( !mConfiguration.KeepLineBreaks )
 			{
-				msg = msg.Replace( "\r\n", " " ).Replace( "\r", " " ).Replace( "\n", " " ).Replace( "\u0002\u0010\u0001\u0003", "" );
+				msg = RemoveLineBreaks( msg );
 			}
 
 			//	Rate limit this as a last resort in case we messed up.
@@ -279,6 +334,7 @@ namespace WhatDidYouSay
 				{
 					Type = mConfiguration.ChatChannelToUse,
 					Name = speakerName,
+					SenderId = mOurFakeSenderID,
 					Message = new Dalamud.Game.Text.SeStringHandling.SeString( new List<Dalamud.Game.Text.SeStringHandling.Payload>
 				{
 					new Dalamud.Game.Text.SeStringHandling.Payloads.TextPayload( msg )
@@ -293,6 +349,20 @@ namespace WhatDidYouSay
 			{
 				return false;
 			}
+		}
+
+		private static string RemoveLineBreaks( string str )
+		{
+			//	SE uses a few different line breaks and control sequences for this it seems.  They're also not
+			//	completely consistent in use of spaces and hyphenation at breaks, but this should cover most cases.
+			return str	.Replace( "-\r\n", "" )
+						.Replace( "-\r", "" )
+						.Replace( "-\n", "" )
+						.Replace( "-\u0002\u0010\u0001\u0003", "" )
+						.Replace( "\r\n", " " )
+						.Replace( "\r", " " )
+						.Replace( "\n", " " )
+						.Replace( "\u0002\u0010\u0001\u0003", " " );
 		}
 
 		private void OnTerritoryChanged( object sender, UInt16 ID )
@@ -310,24 +380,40 @@ namespace WhatDidYouSay
 
 		internal List<SpeechBubbleInfo> GetSpeechBubbleInfo_DEBUG()
 		{
-			lock( mSpeechBubbleInfo )
+			lock( mSpeechBubbleInfoLockObj )
 			{
 				return new( mSpeechBubbleInfo );
 			}
 		}
 
+		internal List<SpeechBubbleInfo> GetGameChatInfo_DEBUG()
+		{
+			lock( mGameChatInfoLockObj )
+			{
+				return new( mGameChatInfo );
+			}
+		}
+
+		internal void PrintChatMessage_DEBUG( string msg, string speakerName )
+		{
+			PrintChatMessage( msg, speakerName );
+		}
+
 		public string Name => "WhatDidYouSay";
 		private const string mTextCommandName = "/saywhat";
 		private const int mNumScreenTextBubbles = 10;
+		private const UInt32 mOurFakeSenderID = 2;	//	Something unlikely to be any real sender ID so that we can quickly discriminate our own messages.
 
 		private readonly PluginUI mUI;
 		private readonly Configuration mConfiguration;
 
 		private unsafe delegate IntPtr OpenChatBubbleDelegate( IntPtr pThis, GameObject* pActor, IntPtr pString, bool param3 );
-		private Hook<OpenChatBubbleDelegate> mOpenChatBubbleHook;
+		private readonly Hook<OpenChatBubbleDelegate> mOpenChatBubbleHook;
 
 		private readonly Object mSpeechBubbleInfoLockObj = new();
+		private readonly Object mGameChatInfoLockObj = new();
 		private readonly List<SpeechBubbleInfo> mSpeechBubbleInfo = new();
+		private readonly List<SpeechBubbleInfo> mGameChatInfo = new();
 		private long mLastTimeChatPrinted_mSec;
 
 		private readonly DalamudPluginInterface mPluginInterface;

@@ -43,6 +43,20 @@ namespace WhatDidYouSay
 			set { mRepeatsAllowedInInstance = value; }
 		}
 
+		public bool mIgnoreIfAlreadyInChat_NPCDialogue = false;
+		public bool IgnoreIfAlreadyInChat_NPCDialogue
+		{
+			get { return mIgnoreIfAlreadyInChat_NPCDialogue; }
+			set { mIgnoreIfAlreadyInChat_NPCDialogue = value; }
+		}
+
+		public bool mIgnoreIfAlreadyInChat_NPCDialogueAnnouncements = false;
+		public bool IgnoreIfAlreadyInChat_NPCDialogueAnnouncements
+		{
+			get { return mIgnoreIfAlreadyInChat_NPCDialogueAnnouncements; }
+			set { mIgnoreIfAlreadyInChat_NPCDialogueAnnouncements = value; }
+		}
+
 		public int mTimeBeforeRepeatsAllowed_Sec = 5;
 		public int TimeBeforeRepeatsAllowed_Sec
 		{

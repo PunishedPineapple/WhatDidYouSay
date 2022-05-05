@@ -1,1 +1,1 @@
-﻿- Handle situations when speech bubble text is also in the base game's NPC dialogue channels.  Probably just regex these chat channels and keep a list going back like 5s for comparison.
+﻿
