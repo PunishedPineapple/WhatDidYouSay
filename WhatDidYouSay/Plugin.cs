@@ -10,6 +10,8 @@ using Dalamud.Game.ClientState;
 using Dalamud.Game.ClientState.Conditions;
 using Dalamud.Game.Command;
 using Dalamud.Game.Gui;
+using Dalamud.Game.Text.SeStringHandling;
+using Dalamud.Game.Text.SeStringHandling.Payloads;
 using Dalamud.Hooking;
 using Dalamud.Logging;
 using Dalamud.Plugin;
@@ -211,11 +213,13 @@ namespace WhatDidYouSay
 				if( pActor == null || pActor->ObjectKind != (byte)Dalamud.Game.ClientState.Objects.Enums.ObjectKind.Player )
 				{
 					long currentTime_mSec = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-					var bubbleInfo = new SpeechBubbleInfo( Marshal.PtrToStringUTF8( pString ), currentTime_mSec );
+
+					SeString speakerName = SeString.Empty;
 					if( pActor != null && pActor->GetName() != null )
 					{
-						bubbleInfo.SpeakerName = MemoryHelper.ReadSeStringNullTerminated( (IntPtr)pActor->GetName() ).ToString();
+						speakerName = MemoryHelper.ReadSeStringNullTerminated( (IntPtr)pActor->GetName() );
 					}
+					var bubbleInfo = new SpeechBubbleInfo( MemoryHelper.ReadSeStringNullTerminated( pString ), currentTime_mSec, speakerName );
 
 					lock( mSpeechBubbleInfoLockObj )
 					{
@@ -245,7 +249,7 @@ namespace WhatDidYouSay
 				{
 					lock( mGameChatInfoLockObj )
 					{
-						mGameChatInfo.Add( new( System.Text.Encoding.UTF8.GetString( message.Encode() ), DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), System.Text.Encoding.UTF8.GetString( sender.Encode() ) ) );
+						mGameChatInfo.Add( new( message, DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), sender ) );
 					}
 					return;
 				}
@@ -254,7 +258,7 @@ namespace WhatDidYouSay
 				{
 					lock( mGameChatInfoLockObj )
 					{
-						mGameChatInfo.Add( new( System.Text.Encoding.UTF8.GetString( message.Encode() ), DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), System.Text.Encoding.UTF8.GetString( sender.Encode() ) ) );
+						mGameChatInfo.Add( new( message, DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), sender ) );
 					}
 					return;
 				}
@@ -318,7 +322,7 @@ namespace WhatDidYouSay
 			}
 		}
 
-		private bool PrintChatMessage( string msg, string speakerName )
+		private bool PrintChatMessage( SeString msg, SeString speakerName )
 		{
 			//	Remove line breaks if desired.
 			if( !mConfiguration.KeepLineBreaks )
@@ -335,10 +339,7 @@ namespace WhatDidYouSay
 					Type = mConfiguration.ChatChannelToUse,
 					Name = speakerName,
 					SenderId = mOurFakeSenderID,
-					Message = new Dalamud.Game.Text.SeStringHandling.SeString( new List<Dalamud.Game.Text.SeStringHandling.Payload>
-				{
-					new Dalamud.Game.Text.SeStringHandling.Payloads.TextPayload( msg )
-				} )
+					Message = msg
 				};
 
 				mChatGui.PrintChat( chatEntry );
@@ -351,18 +352,53 @@ namespace WhatDidYouSay
 			}
 		}
 
-		private static string RemoveLineBreaks( string str )
+		private static SeString RemoveLineBreaks( SeString str )
 		{
-			//	SE uses a few different line breaks and control sequences for this it seems.  They're also not
-			//	completely consistent in use of spaces and hyphenation at breaks, but this should cover most cases.
-			return str	.Replace( "-\r\n", "" )
-						.Replace( "-\r", "" )
-						.Replace( "-\n", "" )
-						.Replace( "-\u0002\u0010\u0001\u0003", "" )
-						.Replace( "\r\n", " " )
-						.Replace( "\r", " " )
-						.Replace( "\n", " " )
-						.Replace( "\u0002\u0010\u0001\u0003", " " );
+			SeString newStr = SeStringDeepCopy( str );
+
+			for( int i = newStr.Payloads.Count - 1; i >= 0 ; --i )
+			{
+				if( newStr.Payloads[i].Type == PayloadType.NewLine )
+				{
+					if( i > 0 ) 
+					{
+						int j = i - 1;
+						while( j >= 0 && newStr.Payloads[j].Type != PayloadType.RawText ) --j;
+
+						if( j >= 0 )
+						{
+							TextPayload prevTextPayload = (TextPayload)newStr.Payloads[j];
+							if( prevTextPayload.Text.EndsWith( '-' ) )
+							{
+								newStr.Payloads[j] = new TextPayload( prevTextPayload.Text[..^1] );
+								newStr.Payloads.RemoveAt( i );
+							}
+							else if( !prevTextPayload.Text.EndsWith( ' ' ) )
+							{
+								newStr.Payloads[i] = new TextPayload( " " );
+							}
+						}
+					}
+					else
+					{
+						newStr.Payloads.RemoveAt( i );
+					}
+				}
+			}
+
+			return newStr;
+		}
+
+		unsafe private static SeString SeStringDeepCopy( SeString str )
+		{
+			var bytes = str.Encode();
+			SeString newStr;
+			fixed( byte* pBytes = bytes )
+			{
+				newStr = MemoryHelper.ReadSeStringNullTerminated( new IntPtr( pBytes ) );
+			}
+			newStr ??= SeString.Empty;
+			return newStr;
 		}
 
 		private void OnTerritoryChanged( object sender, UInt16 ID )
@@ -394,7 +430,7 @@ namespace WhatDidYouSay
 			}
 		}
 
-		internal void PrintChatMessage_DEBUG( string msg, string speakerName )
+		internal void PrintChatMessage_DEBUG( SeString msg, SeString speakerName )
 		{
 			PrintChatMessage( msg, speakerName );
 		}

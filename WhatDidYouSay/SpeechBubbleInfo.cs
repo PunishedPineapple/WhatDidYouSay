@@ -1,8 +1,10 @@
-﻿namespace WhatDidYouSay
+﻿using Dalamud.Game.Text.SeStringHandling;
+
+namespace WhatDidYouSay
 {
 	internal class SpeechBubbleInfo
 	{
-		public SpeechBubbleInfo( string messageText, long timeLastSeen_mSec, string speakerName = "" )
+		public SpeechBubbleInfo( SeString messageText, long timeLastSeen_mSec, SeString speakerName )
 		{
 			TimeLastSeen_mSec = timeLastSeen_mSec;
 			HasBeenPrinted = false;
@@ -14,12 +16,13 @@
 
 		public bool IsSameMessageAs( SpeechBubbleInfo rhs )
 		{
-			return SpeakerName.Equals( rhs.SpeakerName ) && MessageText.Equals( rhs.MessageText );
+			//***** TODO: Is there a better comparison that we can easily do on the whole thing, and not just the text value?  Can we encode and compare and get what we want?
+			return SpeakerName.TextValue.Equals( rhs.SpeakerName.TextValue ) && MessageText.TextValue.Equals( rhs.MessageText.TextValue );
 		}
 
 		public long TimeLastSeen_mSec { get; set; }
 		public bool HasBeenPrinted { get; set; }
-		public string SpeakerName { get; set; }
-		public string MessageText { get; set; }
+		public SeString SpeakerName { get; set; }
+		public SeString MessageText { get; set; }
 	}
 }

@@ -48,8 +48,6 @@ namespace WhatDidYouSay
 			if( ImGui.Begin( Loc.Localize( "Window Title: Config", "\"Say What?\" Settings" ) + "###\"Say What?\" Settings",
 				ImGuiWindowFlags.AlwaysAutoResize | ImGuiWindowFlags.NoCollapse | ImGuiWindowFlags.NoScrollbar | ImGuiWindowFlags.NoScrollWithMouse ) )
 			{
-				
-
 				//***** TODO: Revisit this when Dalamud has the right chat type enums.
 				ImGui.Text( Loc.Localize( "Config Option: Log message channel.", "Log channel for output:" ) );
 				int selectedIndex = mConfiguration.mChatChannelToUse == 0x44 ? 1 : 0;
@@ -181,6 +179,12 @@ namespace WhatDidYouSay
 				foreach( var entry in entries )
 				{
 					ImGui.Text( $"String: {entry.MessageText}, Speaker: {entry.SpeakerName}, Time Last Seen: {entry.TimeLastSeen_mSec}, Has Been Printed {entry.HasBeenPrinted}" );
+					ImGui.Indent();
+					foreach( var payload in entry.MessageText.Payloads )
+					{
+						ImGui.Text( $"Type: {payload.Type}, Contents: {payload.ToString()}" );
+					}
+					ImGui.Unindent();
 				}
 
 				if( ImGui.Button( "Seen chat messages" ) )
@@ -195,7 +199,7 @@ namespace WhatDidYouSay
 
 				foreach( var entry in mPlugin.GetGameChatInfo_DEBUG() )
 				{
-					if( ImGui.Button( $"P###btn{entry.GetHashCode()}" ) )
+					if( ImGui.Button( $"P###btn-chat{entry.GetHashCode()}" ) )
 					{
 						mPlugin.PrintChatMessage_DEBUG( entry.MessageText, entry.SpeakerName );
 					}
