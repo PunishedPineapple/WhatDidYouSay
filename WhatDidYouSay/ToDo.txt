@@ -1,5 +1,8 @@
 ﻿To Do:
 	-Translations
+	-See if we can make up names for unnamed NPCs, like "Lalafell 1", etc.
+		-When would we reset the numbering?
+		-What about mamool-ja and other non-playable races?  How are they even noted?
 
 Notes:
 	-Testing of duplicate chat entry filtering can be accomplished easily in Haukke (Hard) with the first few NPCs up the stairs and down the hall.
