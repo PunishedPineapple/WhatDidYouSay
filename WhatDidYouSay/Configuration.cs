@@ -29,14 +29,14 @@ namespace WhatDidYouSay
 			set { mKeepLineBreaks = value; }
 		}
 
-		public bool mRepeatsAllowed = false;
+		public bool mRepeatsAllowed = true;
 		public bool RepeatsAllowed
 		{
 			get { return mRepeatsAllowed; }
 			set { mRepeatsAllowed = value; }
 		}
 
-		public bool mRepeatsAllowedInInstance = false;
+		public bool mRepeatsAllowedInInstance = true;
 		public bool RepeatsAllowedInInstance
 		{
 			get { return mRepeatsAllowedInInstance; }
@@ -50,21 +50,21 @@ namespace WhatDidYouSay
 			set { mIgnoreIfAlreadyInChat_NPCDialogue = value; }
 		}
 
-		public bool mIgnoreIfAlreadyInChat_NPCDialogueAnnouncements = false;
+		public bool mIgnoreIfAlreadyInChat_NPCDialogueAnnouncements = true;
 		public bool IgnoreIfAlreadyInChat_NPCDialogueAnnouncements
 		{
 			get { return mIgnoreIfAlreadyInChat_NPCDialogueAnnouncements; }
 			set { mIgnoreIfAlreadyInChat_NPCDialogueAnnouncements = value; }
 		}
 
-		public int mTimeBeforeRepeatsAllowed_Sec = 5;
+		public int mTimeBeforeRepeatsAllowed_Sec = 30;
 		public int TimeBeforeRepeatsAllowed_Sec
 		{
 			get { return mTimeBeforeRepeatsAllowed_Sec; }
 			set { mTimeBeforeRepeatsAllowed_Sec = value; }
 		}
 
-		public int mTimeBeforeRepeatsAllowedInInstance_Sec = 1;
+		public int mTimeBeforeRepeatsAllowedInInstance_Sec = 5;
 		public int TimeBeforeRepeatsAllowedInInstance_Sec
 		{
 			get { return mTimeBeforeRepeatsAllowedInInstance_Sec; }
@@ -78,8 +78,8 @@ namespace WhatDidYouSay
 			set { mMinTimeBetweenChatPrints_mSec= value; }
 		}
 
-		//***** TODO: Fix when Dalamud has these chat channels.
-		public int mChatChannelToUse = 0x44;   //	Backing field as an int to work with ImGui.
+		//	Backing field as an int to work with ImGui.
+		public int mChatChannelToUse = 0x44;   //***** TODO: Fix default value when Dalamud has these chat channels.
 		public Dalamud.Game.Text.XivChatType ChatChannelToUse
 		{
 			get { return (Dalamud.Game.Text.XivChatType)mChatChannelToUse; }
