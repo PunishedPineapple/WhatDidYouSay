@@ -1,1 +1,6 @@
-﻿
+﻿To Do:
+	-Translations
+
+Notes:
+	-Testing of duplicate chat entry filtering can be accomplished easily in Haukke (Hard) with the first few NPCs up the stairs and down the hall.
+		-They talk in both speech bubbles, and in the NPC Dialogue (Announcements) chat channel.

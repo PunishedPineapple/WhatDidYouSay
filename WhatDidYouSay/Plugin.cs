@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Runtime.InteropServices;
 
 using CheapLoc;
 
@@ -14,10 +13,9 @@ using Dalamud.Game.Text.SeStringHandling;
 using Dalamud.Game.Text.SeStringHandling.Payloads;
 using Dalamud.Hooking;
 using Dalamud.Logging;
-using Dalamud.Plugin;
 using Dalamud.Memory;
+using Dalamud.Plugin;
 
-using FFXIVClientStructs.FFXIV.Component.GUI;
 using FFXIVClientStructs.FFXIV.Client.Game.Object;
 
 namespace WhatDidYouSay
@@ -32,8 +30,7 @@ namespace WhatDidYouSay
 			ClientState clientState,
 			CommandManager commandManager,
 			Condition condition,
-			ChatGui chatGui,
-			GameGui gameGui )
+			ChatGui chatGui )
 		{
 			//	API Access
 			mPluginInterface	= pluginInterface;
@@ -42,7 +39,6 @@ namespace WhatDidYouSay
 			mCommandManager		= commandManager;
 			mCondition			= condition;
 			mChatGui			= chatGui;
-			mGameGui			= gameGui;
 
 			//	Configuration
 			mConfiguration = mPluginInterface.GetPluginConfig() as Configuration ?? new Configuration();
@@ -69,10 +65,9 @@ namespace WhatDidYouSay
 			}
 
 			//	UI Initialization
-			mUI = new PluginUI( this, mConfiguration, mPluginInterface );
+			mUI = new PluginUI( this, mConfiguration, pluginInterface, clientState );
 			mPluginInterface.UiBuilder.Draw += DrawUI;
 			mPluginInterface.UiBuilder.OpenConfigUi += DrawConfigUI;
-			mUI.Initialize();
 
 			//	Event Subscription
 			mPluginInterface.LanguageChanged += OnLanguageChanged;
@@ -120,78 +115,19 @@ namespace WhatDidYouSay
 			}
 			mCommandManager.AddHandler( mTextCommandName, new CommandInfo( ProcessTextCommand )
 			{
-				HelpMessage = String.Format( Loc.Localize( "Plugin Text Command Description", "Use \"{0}\" to open the the configuration window." ), mTextCommandName + " config" )
+				HelpMessage = Loc.Localize( "Plugin Text Command Description", "Opens the settings window." )
 			} );
 		}
 
-		//	Text Commands
 		private void ProcessTextCommand( string command, string args )
 		{
-			//*****TODO: Don't split, just substring off of the first space so that other stuff is preserved verbatim.
-			//	Seperate into sub-command and paramters.
-			string subCommand = "";
-			string subCommandArgs = "";
-			string[] argsArray = args.Split( ' ' );
-			if( argsArray.Length > 0 )
-			{
-				subCommand = argsArray[0];
-			}
-			if( argsArray.Length > 1 )
-			{
-				//	Recombine because there might be spaces in JSON or something, that would make splitting it bad.
-				for( int i = 1; i < argsArray.Length; ++i )
-				{
-					subCommandArgs += argsArray[i] + ' ';
-				}
-				subCommandArgs = subCommandArgs.Trim();
-			}
-
-			//	Process the commands.
-			bool suppressResponse = mConfiguration.SuppressCommandLineResponses;
-			string commandResponse = "";
-			if( subCommand.Length == 0 )
-			{
-				//	For now just have no subcommands act like the config subcommand
-				mUI.SettingsWindowVisible = !mUI.SettingsWindowVisible;
-			}
-			else if( subCommand.ToLower() == "config" )
-			{
-				mUI.SettingsWindowVisible = !mUI.SettingsWindowVisible;
-			}
-			else if( subCommand.ToLower() == "debug" )
+			if( args.ToLower() == "debug" )
 			{
 				mUI.DebugWindowVisible = !mUI.DebugWindowVisible;
 			}
-			else if( subCommand.ToLower() == "help" || subCommand.ToLower() == "?" )
-			{
-				commandResponse = ProcessTextCommand_Help( subCommandArgs );
-				suppressResponse = false;
-			}
 			else
 			{
-				commandResponse = ProcessTextCommand_Help( subCommandArgs );
-			}
-
-			//	Send any feedback to the user.
-			if( commandResponse.Length > 0 && !suppressResponse )
-			{
-				mChatGui.Print( commandResponse );
-			}
-		}
-
-		private string ProcessTextCommand_Help( string args )
-		{
-			if( args.ToLower() == "config" )
-			{
-				return Loc.Localize( "Config Subcommand Help Message", "Opens the settings window." );
-			}
-			else if( args.ToLower() == "debug" )
-			{
-				return Loc.Localize( "Debug Subcommand Help Message", "Opens a debugging window." );
-			}
-			else
-			{
-				return String.Format( Loc.Localize( "Basic Help Message", "This plugin works automatically; however, some text commands are supported.  Valid subcommands are {0}.  Use \"{1} <subcommand>\" for more information on each subcommand." ), "\"config\"", mTextCommandName + " help" );
+				mUI.SettingsWindowVisible = !mUI.SettingsWindowVisible;
 			}
 		}
 
@@ -275,8 +211,8 @@ namespace WhatDidYouSay
 				for( int i = mSpeechBubbleInfo.Count - 1; i >= 0; --i )
 				{
 					long timeSinceLastSeen_mSec = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - mSpeechBubbleInfo[i].TimeLastSeen_mSec;
-					bool delete_OutOfInstance = mConfiguration.RepeatsAllowed && timeSinceLastSeen_mSec > mConfiguration.TimeBeforeRepeatsAllowed_Sec * 1000;
-					bool delete_InInstance = mConfiguration.RepeatsAllowedInInstance && timeSinceLastSeen_mSec > mConfiguration.TimeBeforeRepeatsAllowedInInstance_Sec * 1000;
+					bool delete_OutOfInstance = mConfiguration.RepeatsAllowed && timeSinceLastSeen_mSec > Math.Max( 1, mConfiguration.TimeBeforeRepeatsAllowed_Sec ) * 1000;
+					bool delete_InInstance = mConfiguration.RepeatsAllowedInInstance && timeSinceLastSeen_mSec > Math.Max( 1, mConfiguration.TimeBeforeRepeatsAllowedInInstance_Sec ) * 1000;
 					if( mCondition[ConditionFlag.BoundByDuty] ? delete_InInstance : delete_OutOfInstance )
 					{
 						mSpeechBubbleInfo.RemoveAt( i );
@@ -404,6 +340,7 @@ namespace WhatDidYouSay
 		private void OnTerritoryChanged( object sender, UInt16 ID )
 		{
 			ClearSpeechBubbleHistory();
+			ClearGameChatHistory();
 		}
 
 		internal void ClearSpeechBubbleHistory()
@@ -411,6 +348,14 @@ namespace WhatDidYouSay
 			lock( mSpeechBubbleInfoLockObj )
 			{
 				mSpeechBubbleInfo.Clear();
+			}
+		}
+
+		internal void ClearGameChatHistory()
+		{
+			lock( mGameChatInfoLockObj )
+			{
+				mGameChatInfo.Clear();
 			}
 		}
 
@@ -435,9 +380,8 @@ namespace WhatDidYouSay
 			PrintChatMessage( msg, speakerName );
 		}
 
-		public string Name => "WhatDidYouSay";
+		public string Name => "Say What?";
 		private const string mTextCommandName = "/saywhat";
-		private const int mNumScreenTextBubbles = 10;
 		private const UInt32 mOurFakeSenderID = 2;	//	Something unlikely to be any real sender ID so that we can quickly discriminate our own messages.
 
 		private readonly PluginUI mUI;
@@ -458,6 +402,5 @@ namespace WhatDidYouSay
 		private readonly CommandManager mCommandManager;
 		private readonly Condition mCondition;
 		private readonly ChatGui mChatGui;
-		private readonly GameGui mGameGui;
 	}
 }
