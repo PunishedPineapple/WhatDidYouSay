@@ -175,29 +175,26 @@ namespace WhatDidYouSay
 			return mOpenChatBubbleHook.Original( pThis, pActor, pString, param3 );
 		}
 
-		private void OnChatMessage( Dalamud.Game.Text.XivChatType type, UInt32 senderId, ref Dalamud.Game.Text.SeStringHandling.SeString sender, ref Dalamud.Game.Text.SeStringHandling.SeString message, ref bool isHandled )
+		private void OnChatMessage( Dalamud.Game.Text.XivChatType type, UInt32 timestamp, ref Dalamud.Game.Text.SeStringHandling.SeString sender, ref Dalamud.Game.Text.SeStringHandling.SeString message, ref bool isHandled )
 		{
 			//	We want to keep a short record of NPC dialogue messages that the game sends itself, because
 			//	in some cases, these can duplicate speech bubbles.  We'll use these to avoid duplicate log lines.
-			if( senderId != mOurFakeSenderID )
+			if( (UInt16)type == 0x3D && mConfiguration.IgnoreIfAlreadyInChat_NPCDialogue )  //***** TODO: Fix when enum updated in Dalamud.
 			{
-				if( (UInt16)type == 0x3D && mConfiguration.IgnoreIfAlreadyInChat_NPCDialogue )  //***** TODO: Fix when enum updated in Dalamud.
+				lock( mGameChatInfoLockObj )
 				{
-					lock( mGameChatInfoLockObj )
-					{
-						mGameChatInfo.Add( new( message, DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), sender ) );
-					}
-					return;
+					mGameChatInfo.Add( new( message, DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), sender ) );
 				}
+				return;
+			}
 
-				if( (UInt16)type == 0x44 && mConfiguration.IgnoreIfAlreadyInChat_NPCDialogueAnnouncements ) //***** TODO: Fix when enum updated in Dalamud.
+			if( (UInt16)type == 0x44 && mConfiguration.IgnoreIfAlreadyInChat_NPCDialogueAnnouncements ) //***** TODO: Fix when enum updated in Dalamud.
+			{
+				lock( mGameChatInfoLockObj )
 				{
-					lock( mGameChatInfoLockObj )
-					{
-						mGameChatInfo.Add( new( message, DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), sender ) );
-					}
-					return;
+					mGameChatInfo.Add( new( message, DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), sender ) );
 				}
+				return;
 			}
 		}
 
@@ -274,7 +271,6 @@ namespace WhatDidYouSay
 				{
 					Type = mConfiguration.ChatChannelToUse,
 					Name = speakerName,
-					SenderId = mOurFakeSenderID,
 					Message = msg
 				};
 
@@ -382,7 +378,6 @@ namespace WhatDidYouSay
 
 		public string Name => "Say What?";
 		private const string mTextCommandName = "/saywhat";
-		private const UInt32 mOurFakeSenderID = 2;	//	Something unlikely to be any real sender ID so that we can quickly discriminate our own messages.
 
 		private readonly PluginUI mUI;
 		private readonly Configuration mConfiguration;
