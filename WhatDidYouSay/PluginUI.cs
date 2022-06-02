@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Globalization;
 using System.IO;
 using System.Numerics;
 
@@ -6,6 +7,9 @@ using CheapLoc;
 
 using Dalamud.Game.ClientState;
 using Dalamud.Plugin;
+using Dalamud.Game.Gui;
+using Dalamud.Game.Text.SeStringHandling;
+using Dalamud.Game.Text.SeStringHandling.Payloads;
 
 using ImGuiNET;
 
@@ -127,7 +131,7 @@ namespace WhatDidYouSay
 			ImGui.End();
 		}
 
-		protected void DrawDebugWindow()
+		protected unsafe void DrawDebugWindow()
 		{
 			if( !DebugWindowVisible )
 			{
@@ -146,6 +150,67 @@ namespace WhatDidYouSay
 					Loc.ExportLocalizable();
 					Directory.SetCurrentDirectory( pwd );
 				}
+
+				ImGui.Checkbox( "Disable Automatic Chat History Clearing", ref mPlugin.DisableGameChatDataClearing_DEBUG );
+				ImGui.Separator();
+
+				ImGui.InputText( "Chat Param (hex)", ref mCurrentChatParameter_DEBUG, 16 );
+				ImGui.InputText( "Chat Sender", ref mCurrentChatSender_DEBUG, 64 );
+
+
+				if( ImGui.BeginCombo( "Chat Type", mCurrentChatTypeSelection_DEBUG.ToString() ) )
+				{
+					foreach( Dalamud.Game.Text.XivChatType entry in Enum.GetValues( typeof( Dalamud.Game.Text.XivChatType ) ) )
+					{
+						if( ImGui.Selectable( entry.ToString() ) ) mCurrentChatTypeSelection_DEBUG = entry;
+					}
+					ImGui.EndCombo();
+				}
+
+				if( ImGui.Button( "Send Test Message" ) )
+				{
+					long chatParam = 0;
+					long.TryParse( mCurrentChatParameter_DEBUG, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out chatParam );
+					mPlugin.PrintTestChatMessage_DEBUG( "Test message", mCurrentChatSender_DEBUG, mCurrentChatTypeSelection_DEBUG, new( chatParam ) );
+				}
+
+				ImGui.Separator();
+
+				ImGui.Spacing();
+				ImGui.Spacing();
+				ImGui.Spacing();
+				ImGui.Spacing();
+				ImGui.Spacing();
+
+				ImGui.TextWrapped( "DON'T FUCK THIS UP OR YOU CAN SEND INVALID DATA TO THE SERVER WHEN RIGHT CLICKING A PLAYER IN THE CHAT LOG." );
+				ImGui.InputText( "Content ID (hex)", ref mContentIDToAttach_DEBUG, 16 );
+				ImGui.InputText( "Message Index", ref mMessageIndexToWhichToAttach_DEBUG, 8 );
+				ImGui.InputText( "Server ID", ref mWorldIDToAttach_DEBUG, 8 );
+				if( ImGui.BeginCombo( "Chat Type###ChatTypeToAttach", mChatTypeToAttach_DEBUG.ToString() ) )
+				{
+					foreach( Dalamud.Game.Text.XivChatType entry in Enum.GetValues( typeof( Dalamud.Game.Text.XivChatType ) ) )
+					{
+						if( ImGui.Selectable( entry.ToString() ) ) mChatTypeToAttach_DEBUG = entry;
+					}
+					ImGui.EndCombo();
+				}
+
+				if( ImGui.Button( "Attach CID To Message" ) )
+				{
+					UInt64 contentID = 0;
+					UInt64.TryParse( mContentIDToAttach_DEBUG, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out contentID );
+
+
+					UInt32 messageIndex = 0;
+					UInt32.TryParse( mMessageIndexToWhichToAttach_DEBUG, out messageIndex );
+
+					UInt16 serverID = 0;
+					UInt16.TryParse( mWorldIDToAttach_DEBUG, out serverID );
+
+					mPlugin.AttachCIDToMessage( contentID, messageIndex, serverID, (UInt16)mChatTypeToAttach_DEBUG );
+				}
+
+				ImGui.Separator();
 
 				ImGui.Spacing();
 				ImGui.Spacing();
@@ -172,6 +237,8 @@ namespace WhatDidYouSay
 					ImGui.Unindent();
 				}
 
+				ImGui.Separator();
+
 				ImGui.Spacing();
 				ImGui.Spacing();
 				ImGui.Spacing();
@@ -190,6 +257,9 @@ namespace WhatDidYouSay
 					if( ImGui.Button( $"P###btn-chat{entry.GetHashCode()}" ) )
 					{
 						mPlugin.PrintChatMessage_DEBUG( entry.MessageText, entry.SpeakerName );
+
+						//***** TESTING
+						mPlugin.PrintTestChatMessage_DEBUG( entry.MessageText, entry.SpeakerName, mCurrentChatTypeSelection_DEBUG, IntPtr.Zero );
 					}
 					ImGui.SameLine();
 					ImGui.Text( $"String: {entry.MessageText}, Speaker: {entry.SpeakerName}, Time Last Seen: {entry.TimeLastSeen_mSec}, Has Been Printed {entry.HasBeenPrinted}" );
@@ -244,5 +314,13 @@ namespace WhatDidYouSay
 			get { return mDebugWindowVisible; }
 			set { mDebugWindowVisible = value; }
 		}
+
+		internal Dalamud.Game.Text.XivChatType mCurrentChatTypeSelection_DEBUG = Dalamud.Game.Text.XivChatType.Say;
+		internal string mCurrentChatParameter_DEBUG = "";
+		internal string mCurrentChatSender_DEBUG = "";
+		internal string mContentIDToAttach_DEBUG = "";
+		internal string mMessageIndexToWhichToAttach_DEBUG = "";
+		internal string mWorldIDToAttach_DEBUG = "";
+		internal Dalamud.Game.Text.XivChatType mChatTypeToAttach_DEBUG = Dalamud.Game.Text.XivChatType.Say;
 	}
 }

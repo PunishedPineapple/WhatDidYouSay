@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Runtime.InteropServices;
 
 using CheapLoc;
 
@@ -17,6 +18,8 @@ using Dalamud.Memory;
 using Dalamud.Plugin;
 
 using FFXIVClientStructs.FFXIV.Client.Game.Object;
+using FFXIVClientStructs.FFXIV.Client.System.Framework;
+using FFXIVClientStructs.FFXIV.Client.UI.Misc;
 
 namespace WhatDidYouSay
 {
@@ -25,7 +28,7 @@ namespace WhatDidYouSay
 		//	Initialization
 		public Plugin(
 			DalamudPluginInterface pluginInterface,
-			Framework framework,
+			Dalamud.Game.Framework framework,
 			SigScanner sigScanner,
 			ClientState clientState,
 			CommandManager commandManager,
@@ -62,6 +65,31 @@ namespace WhatDidYouSay
 				{
 					throw new Exception( "Unable to find the specified function signature for OpenChatBubble." );
 				}
+
+				IntPtr fpGetCIDForChatEntry = sigScanner.ScanText( "4C 8B 81 ?? ?? ?? ?? 4D 85 C0 74 17" );
+				if( fpGetCIDForChatEntry != IntPtr.Zero )
+				{
+					PluginLog.LogInformation( $"GetCIDForChatEntry function signature found at 0x{fpGetCIDForChatEntry:X}." );
+					GetCIDForChatEntryDelegate dGetCIDForChatEntry = GetCIDForChatEntryDetour;
+					mGetCIDForChatEntryHook = new( fpGetCIDForChatEntry, dGetCIDForChatEntry );
+					mGetCIDForChatEntryHook.Enable();
+				}
+
+				IntPtr fpSetCIDForChatEntry = sigScanner.ScanText( "4C 8B ?? 48 ?? ?? ?? ?? ?? ?? 48 85 ?? 74 ?? 41 ?? ?? ?? ?? ?? ?? 48" );
+				if( fpSetCIDForChatEntry != IntPtr.Zero )
+				{
+					PluginLog.LogInformation( $"SetCIDForChatEntry function signature found at 0x{fpSetCIDForChatEntry:X}." );
+					mdSetCIDForChatEntry = Marshal.GetDelegateForFunctionPointer<SetCIDForChatEntryDelegate>( fpSetCIDForChatEntry );
+				}
+
+				/*IntPtr fpSayChatCommand = sigScanner.ScanText( "?? 89 ?? ?? ?? 55 56 57 48 81 ?? ?? ?? ?? ?? 48 8B ?? ?? ?? ?? ?? 48 33 ?? ?? 89 ?? ?? ?? ?? ?? ?? 48 ?? ?? ?? 48 8B ?? 48 ?? ?? ?? 48 B8 ?? ?? ?? ?? ?? ?? ?? ?? 48 ?? ?? 49 8B ?? 49 8B ?? 48 C1 ?? ?? 48 8B ?? 48 C1 ?? ?? 48" );
+				if( fpSayChatCommand != IntPtr.Zero )
+				{
+					PluginLog.LogInformation( $"SayChatCommand function signature found at 0x{fpSayChatCommand:X}." );
+					SayChatCommandDelegate dSayChatCommand = SayChatCommandDetour;
+					mSayChatCommandHook = new( fpSayChatCommand, dSayChatCommand );
+					mSayChatCommandHook.Enable();
+				}*/
 			}
 
 			//	UI Initialization
@@ -74,6 +102,9 @@ namespace WhatDidYouSay
 			mClientState.TerritoryChanged += OnTerritoryChanged;
 			mFramework.Update += OnGameFrameworkUpdate;
 			mChatGui.ChatMessage += OnChatMessage;
+			//mChatGui.CheckMessageHandled += OnCheckChatMessageHandled;
+			//mChatGui.ChatMessageHandled += OnChatMessageHandled;
+			//mChatGui.ChatMessageUnhandled += OnChatMessageUnhandled;
 		}
 
 		//	Cleanup
@@ -82,7 +113,16 @@ namespace WhatDidYouSay
 			mOpenChatBubbleHook?.Disable();
 			mOpenChatBubbleHook?.Dispose();
 
+			mGetCIDForChatEntryHook?.Disable();
+			mGetCIDForChatEntryHook?.Dispose();
+
+			mSayChatCommandHook?.Disable();
+			mSayChatCommandHook?.Dispose();
+
 			mChatGui.ChatMessage -= OnChatMessage;
+			//mChatGui.CheckMessageHandled -= OnCheckChatMessageHandled;
+			//mChatGui.ChatMessageHandled -= OnChatMessageHandled;
+			//mChatGui.ChatMessageUnhandled -= OnChatMessageUnhandled;
 			mFramework.Update -= OnGameFrameworkUpdate;
 			mClientState.TerritoryChanged -= OnTerritoryChanged;
 			mPluginInterface.LanguageChanged -= OnLanguageChanged;
@@ -175,8 +215,49 @@ namespace WhatDidYouSay
 			return mOpenChatBubbleHook.Original( pThis, pActor, pString, param3 );
 		}
 
-		private void OnChatMessage( Dalamud.Game.Text.XivChatType type, UInt32 timestamp, ref Dalamud.Game.Text.SeStringHandling.SeString sender, ref Dalamud.Game.Text.SeStringHandling.SeString message, ref bool isHandled )
+		unsafe private ulong GetCIDForChatEntryDetour( IntPtr pThis, uint index )
 		{
+			ulong retval = mGetCIDForChatEntryHook.Original( pThis, index );
+			PluginLog.LogDebug( $"Get CID for chat entry {index}: 0x{retval:X} (logptr: 0x{pThis:X})" );
+			return retval;
+		}
+
+		/*unsafe private void SayChatCommandDetour( IntPtr pThis, IntPtr param2, IntPtr param3 )
+		{
+			try
+			{
+				PluginLog.LogDebug( $"Say chat detour: 0x{param2:X}, 0x{param3:X}" );
+			}
+			finally
+			{
+				mSayChatCommandHook.Original( pThis, param2, param3 );
+			}
+		}*/
+
+		private void OnChatMessage( Dalamud.Game.Text.XivChatType type, UInt32 senderId, ref Dalamud.Game.Text.SeStringHandling.SeString sender, ref Dalamud.Game.Text.SeStringHandling.SeString message, ref bool isHandled )
+		{
+			//***** DEBUG
+			if( type is Dalamud.Game.Text.XivChatType.Say or Dalamud.Game.Text.XivChatType.Shout or Dalamud.Game.Text.XivChatType.Yell )
+			{
+				string senderPayloadsStr = "";
+				foreach( var payload in sender.Payloads )
+				{
+					senderPayloadsStr += $"{payload}, ";
+				}
+				var senderEncoded = sender.Encode();
+				string encodedSenderStr = "";
+				foreach( var character in senderEncoded )
+				{
+					encodedSenderStr += $"{character:X2} ";
+				}
+				PluginLog.LogDebug( $"OnMessage - Timestamp: {senderId}, Sender: {senderPayloadsStr}" );
+				//if( type is Dalamud.Game.Text.XivChatType.Shout ) isHandled = true;
+				lock( mGameChatInfoLockObj )
+				{
+					mGameChatInfo.Add( new( message, DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), sender ) );
+				}
+			}
+
 			//	We want to keep a short record of NPC dialogue messages that the game sends itself, because
 			//	in some cases, these can duplicate speech bubbles.  We'll use these to avoid duplicate log lines.
 			if( (UInt16)type == 0x3D && mConfiguration.IgnoreIfAlreadyInChat_NPCDialogue )  //***** TODO: Fix when enum updated in Dalamud.
@@ -198,7 +279,31 @@ namespace WhatDidYouSay
 			}
 		}
 
-		unsafe private void OnGameFrameworkUpdate( Framework framework )
+		/*private void OnCheckChatMessageHandled( Dalamud.Game.Text.XivChatType type, UInt32 senderId, ref Dalamud.Game.Text.SeStringHandling.SeString sender, ref Dalamud.Game.Text.SeStringHandling.SeString message, ref bool isHandled )
+		{
+			if( type is Dalamud.Game.Text.XivChatType.Say or Dalamud.Game.Text.XivChatType.Shout or Dalamud.Game.Text.XivChatType.Yell )
+			{
+				PluginLog.LogDebug($"OnCheckHandled - Timestamp: {senderId}, Sender: {sender}, Message: {message}" );
+			}
+		}
+
+		private void OnChatMessageHandled( Dalamud.Game.Text.XivChatType type, UInt32 senderId, Dalamud.Game.Text.SeStringHandling.SeString sender, Dalamud.Game.Text.SeStringHandling.SeString message )
+		{
+			if( type is Dalamud.Game.Text.XivChatType.Say or Dalamud.Game.Text.XivChatType.Shout or Dalamud.Game.Text.XivChatType.Yell )
+			{
+				PluginLog.LogDebug( $"OnHandled - Timestamp: {senderId}, Sender: {sender}, Message: {message}" );
+			}
+		}
+
+		private void OnChatMessageUnhandled( Dalamud.Game.Text.XivChatType type, UInt32 senderId, Dalamud.Game.Text.SeStringHandling.SeString sender, Dalamud.Game.Text.SeStringHandling.SeString message )
+		{
+			if( type is Dalamud.Game.Text.XivChatType.Say or Dalamud.Game.Text.XivChatType.Shout or Dalamud.Game.Text.XivChatType.Yell )
+			{
+				PluginLog.LogDebug( $"OnUnhandled - Timestamp: {senderId}, Sender: {sender}, Message: {message}" );
+			}
+		}*/
+
+		unsafe private void OnGameFrameworkUpdate( Dalamud.Game.Framework framework )
 		{
 			if( !mClientState.IsLoggedIn ) return;
 
@@ -217,15 +322,18 @@ namespace WhatDidYouSay
 				}
 			}
 
-			lock( mGameChatInfoLockObj )
+			if( !DisableGameChatDataClearing_DEBUG )
 			{
-				//	Clean up any expired records.
-				for( int i = mGameChatInfo.Count - 1; i >= 0; --i )
+				lock( mGameChatInfoLockObj )
 				{
-					long timeSinceLastSeen_mSec = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - mGameChatInfo[i].TimeLastSeen_mSec;
-					if( timeSinceLastSeen_mSec > 5000 )
+					//	Clean up any expired records.
+					for( int i = mGameChatInfo.Count - 1; i >= 0; --i )
 					{
-						mGameChatInfo.RemoveAt( i );
+						long timeSinceLastSeen_mSec = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - mGameChatInfo[i].TimeLastSeen_mSec;
+						if( timeSinceLastSeen_mSec > 5000 )
+						{
+							mGameChatInfo.RemoveAt( i );
+						}
 					}
 				}
 			}
@@ -336,7 +444,7 @@ namespace WhatDidYouSay
 		private void OnTerritoryChanged( object sender, UInt16 ID )
 		{
 			ClearSpeechBubbleHistory();
-			ClearGameChatHistory();
+			if( !DisableGameChatDataClearing_DEBUG ) ClearGameChatHistory();
 		}
 
 		internal void ClearSpeechBubbleHistory()
@@ -376,6 +484,28 @@ namespace WhatDidYouSay
 			PrintChatMessage( msg, speakerName );
 		}
 
+		internal void PrintTestChatMessage_DEBUG( SeString msg, SeString speakerName, Dalamud.Game.Text.XivChatType channel, IntPtr parameter )
+		{
+			var chatEntry = new Dalamud.Game.Text.XivChatEntry
+			{
+				Type = channel,
+				Name = speakerName,
+				//SenderId = 2442823091,
+				//SenderId = (uint)(DateTimeOffset.UtcNow.ToUnixTimeSeconds() - 3600 * 6 + 500),//mOurFakeSenderID,
+				Message = msg,
+				Parameters = parameter,
+			};
+
+			mChatGui.PrintChat( chatEntry );
+		}
+
+		internal unsafe void AttachCIDToMessage( UInt64 contentID, UInt32 messageIndex, UInt16 serverID, UInt16 chatType )
+		{
+			
+			mdSetCIDForChatEntry?.Invoke( new( FFXIVClientStructs.FFXIV.Client.System.Framework.Framework.Instance()->GetUiModule()->GetRaptureLogModule() ), contentID, messageIndex, serverID, chatType );
+		}
+
+
 		public string Name => "Say What?";
 		private const string mTextCommandName = "/saywhat";
 
@@ -385,14 +515,26 @@ namespace WhatDidYouSay
 		private unsafe delegate IntPtr OpenChatBubbleDelegate( IntPtr pThis, GameObject* pActor, IntPtr pString, bool param3 );
 		private readonly Hook<OpenChatBubbleDelegate> mOpenChatBubbleHook;
 
+		private unsafe delegate ulong GetCIDForChatEntryDelegate( IntPtr pThis, uint index );
+		private readonly Hook<GetCIDForChatEntryDelegate> mGetCIDForChatEntryHook;
+
+		private unsafe delegate void SetCIDForChatEntryDelegate( IntPtr pThis, UInt64 contentID, UInt32 messageIndex, UInt16 serverID, UInt16 chatType );
+		private readonly SetCIDForChatEntryDelegate mdSetCIDForChatEntry;
+		//private readonly Hook<SetCIDForChatEntryDelegate> mSetCIDForChatEntryHook;
+
+		private unsafe delegate void SayChatCommandDelegate( IntPtr pThis, IntPtr param2, IntPtr param3 );
+		private readonly Hook<SayChatCommandDelegate> mSayChatCommandHook;
+
 		private readonly Object mSpeechBubbleInfoLockObj = new();
 		private readonly Object mGameChatInfoLockObj = new();
 		private readonly List<SpeechBubbleInfo> mSpeechBubbleInfo = new();
 		private readonly List<SpeechBubbleInfo> mGameChatInfo = new();
 		private long mLastTimeChatPrinted_mSec;
 
+		internal bool DisableGameChatDataClearing_DEBUG = true;
+
 		private readonly DalamudPluginInterface mPluginInterface;
-		private readonly Framework mFramework;
+		private readonly Dalamud.Game.Framework mFramework;
 		private readonly ClientState mClientState;
 		private readonly CommandManager mCommandManager;
 		private readonly Condition mCondition;
