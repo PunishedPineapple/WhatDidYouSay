@@ -5,6 +5,7 @@ using System.Numerics;
 using CheapLoc;
 
 using Dalamud.Game.ClientState;
+using Dalamud.Game.Text;
 using Dalamud.Plugin;
 
 using ImGuiNET;
@@ -49,17 +50,25 @@ namespace WhatDidYouSay
 			if( ImGui.Begin( Loc.Localize( "Window Title: Config", "\"Say What?\" Settings" ) + "###\"Say What?\" Settings",
 				ImGuiWindowFlags.AlwaysAutoResize | ImGuiWindowFlags.NoCollapse | ImGuiWindowFlags.NoScrollbar | ImGuiWindowFlags.NoScrollWithMouse ) )
 			{
-				//***** TODO: Revisit this when Dalamud has the right chat type enums.
 				ImGui.Text( Loc.Localize( "Config Option: Log message channel.", "Chat Log channel for output:" ) );
 				ImGuiUtils.HelpMarker( Loc.Localize( "Help: Log message channel.", "Make sure that the channel you select here is turned on in your character's log filter settings, or you won't see any messages." ) );
-				int selectedIndex = mConfiguration.mChatChannelToUse == 0x44 ? 1 : 0;
-				string[] comboItems = new string[]
+				string currentChannelName = mConfiguration.ChatChannelToUse switch
 				{
-					GetNPCDialogueChannelName(),
-					GetNPCDialogueAnnouncementsChannelName()
+					XivChatType.NPCDialogue => GetNPCDialogueChannelName(),
+					XivChatType.NPCDialogueAnnouncements => GetNPCDialogueAnnouncementsChannelName(),
+					_ => "INVALID CHANNEL",
 				};
-				ImGui.Combo( "###Chat Channel Dropdown", ref selectedIndex, comboItems, comboItems.Length );
-				mConfiguration.mChatChannelToUse = selectedIndex == 1 ? 0x44 : 0x3D;
+				if( ImGui.BeginCombo( "###Chat Channel Dropdown", currentChannelName ) )	//***** TODO: When chat rework happens, just use the localization functions from that (if that's how we do it) instead of switch above for currentChannelName and context menu options below.
+				{
+					if( ImGui.Selectable( GetNPCDialogueChannelName() ) )
+					{
+						mConfiguration.ChatChannelToUse = XivChatType.NPCDialogue;
+					}
+					if( ImGui.Selectable( GetNPCDialogueAnnouncementsChannelName() ) )
+					{
+						mConfiguration.ChatChannelToUse = XivChatType.NPCDialogueAnnouncements;
+					}
+				}
 
 				ImGui.Spacing();
 

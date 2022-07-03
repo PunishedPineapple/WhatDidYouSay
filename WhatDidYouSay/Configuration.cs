@@ -1,6 +1,7 @@
 ﻿using System;
 
 using Dalamud.Configuration;
+using Dalamud.Game.Text;
 using Dalamud.Plugin;
 
 namespace WhatDidYouSay
@@ -79,10 +80,10 @@ namespace WhatDidYouSay
 		}
 
 		//	Backing field as an int to work with ImGui.
-		public int mChatChannelToUse = 0x44;   //***** TODO: Fix default value when Dalamud has these chat channels.
-		public Dalamud.Game.Text.XivChatType ChatChannelToUse
+		public int mChatChannelToUse = (int)XivChatType.NPCDialogueAnnouncements;
+		public XivChatType ChatChannelToUse
 		{
-			get { return (Dalamud.Game.Text.XivChatType)mChatChannelToUse; }
+			get { return (XivChatType)mChatChannelToUse; }
 			set { mChatChannelToUse = (int)value; }
 		}
 

@@ -9,6 +9,7 @@ using Dalamud.Game.ClientState;
 using Dalamud.Game.ClientState.Conditions;
 using Dalamud.Game.Command;
 using Dalamud.Game.Gui;
+using Dalamud.Game.Text;
 using Dalamud.Game.Text.SeStringHandling;
 using Dalamud.Game.Text.SeStringHandling.Payloads;
 using Dalamud.Hooking;
@@ -143,7 +144,7 @@ namespace WhatDidYouSay
 
 		unsafe private IntPtr OpenChatBubbleDetour( IntPtr pThis, GameObject* pActor, IntPtr pString, bool param3 )
 		{
-			if( pString != IntPtr.Zero && !mClientState.IsPvP )
+			if( pString != IntPtr.Zero && !mClientState.IsPvPExcludingDen )
 			{
 				//	Idk if the actor can ever be null, but if it can, assume that we should print the bubble just in case.  Otherwise, only don't print if the actor is a player.
 				if( pActor == null || pActor->ObjectKind != (byte)Dalamud.Game.ClientState.Objects.Enums.ObjectKind.Player )
@@ -175,11 +176,11 @@ namespace WhatDidYouSay
 			return mOpenChatBubbleHook.Original( pThis, pActor, pString, param3 );
 		}
 
-		private void OnChatMessage( Dalamud.Game.Text.XivChatType type, UInt32 timestamp, ref Dalamud.Game.Text.SeStringHandling.SeString sender, ref Dalamud.Game.Text.SeStringHandling.SeString message, ref bool isHandled )
+		private void OnChatMessage( Dalamud.Game.Text.XivChatType type, UInt32 timestamp, ref SeString sender, ref SeString message, ref bool isHandled )
 		{
 			//	We want to keep a short record of NPC dialogue messages that the game sends itself, because
 			//	in some cases, these can duplicate speech bubbles.  We'll use these to avoid duplicate log lines.
-			if( (UInt16)type == 0x3D && mConfiguration.IgnoreIfAlreadyInChat_NPCDialogue )  //***** TODO: Fix when enum updated in Dalamud.
+			if( type == XivChatType.NPCDialogue && mConfiguration.IgnoreIfAlreadyInChat_NPCDialogue )
 			{
 				lock( mGameChatInfoLockObj )
 				{
@@ -188,7 +189,7 @@ namespace WhatDidYouSay
 				return;
 			}
 
-			if( (UInt16)type == 0x44 && mConfiguration.IgnoreIfAlreadyInChat_NPCDialogueAnnouncements ) //***** TODO: Fix when enum updated in Dalamud.
+			if( type == XivChatType.NPCDialogueAnnouncements && mConfiguration.IgnoreIfAlreadyInChat_NPCDialogueAnnouncements )
 			{
 				lock( mGameChatInfoLockObj )
 				{
