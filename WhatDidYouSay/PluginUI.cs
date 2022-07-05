@@ -68,6 +68,7 @@ namespace WhatDidYouSay
 					{
 						mConfiguration.ChatChannelToUse = XivChatType.NPCDialogueAnnouncements;
 					}
+					ImGui.EndCombo();
 				}
 
 				ImGui.Spacing();
