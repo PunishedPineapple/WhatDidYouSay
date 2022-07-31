@@ -2,7 +2,7 @@
 	<PropertyGroup>
 		<TargetFramework>net5.0-windows</TargetFramework>
 		<Platforms>AnyCPU</Platforms>
-		<Version>1.0.0.2</Version>
+		<Version>1.0.0.3</Version>
 		<Authors>PunishedPineapple</Authors>
 		<Product />
 		<Copyright>Copyright © PunishedPineapple 2022</Copyright>
@@ -12,12 +12,20 @@
 
 	<PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
 		<AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+		<DebugSymbols>true</DebugSymbols>
+		<DebugType>full</DebugType>
 		<NoWarn>1701;1702;</NoWarn>
 	</PropertyGroup>
 
 	<PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
 		<AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+		<DebugSymbols>true</DebugSymbols>
+		<DebugType>full</DebugType>
 	</PropertyGroup>
+
+	<ItemGroup>
+	  <PackageReference Include="DalamudPackager" Version="2.1.7" />
+	</ItemGroup>
 
 	<ItemGroup>
 		<Reference Include="Dalamud">
@@ -55,11 +63,6 @@
 	</ItemGroup>
 
 	<ItemGroup>
-		<None Update="WhatDidYouSay.json">
-			<CopyToOutputDirectory>Always</CopyToOutputDirectory>
-		</None>
-		<None Update="Resources\Localization\WhatDidYouSay_Localizable.json">
-		  <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-		</None>
+		<Content Include="Resources\**" DestinationFolder="Resources\$(RecursiveDir)" CopyToOutputDirectory="Always" />
 	</ItemGroup>
 </Project>
