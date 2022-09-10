@@ -20,6 +20,9 @@ using Dalamud.Plugin;
 
 using FFXIVClientStructs.FFXIV.Client.Game.Object;
 
+using Lumina.Excel;
+using Lumina.Excel.GeneratedSheets;
+
 namespace WhatDidYouSay
 {
 	public sealed class Plugin : IDalamudPlugin
@@ -32,7 +35,7 @@ namespace WhatDidYouSay
 			ClientState clientState,
 			DataManager dataManager,
 			CommandManager commandManager,
-			Condition condition,
+			Dalamud.Game.ClientState.Conditions.Condition condition,
 			ChatGui chatGui )
 		{
 			//	API Access
@@ -68,7 +71,7 @@ namespace WhatDidYouSay
 			}
 
 			//	UI Initialization
-			mUI = new PluginUI( this, mConfiguration, pluginInterface, clientState, dataManager );
+			mUI = new PluginUI( this, mConfiguration, pluginInterface, clientState );
 			mPluginInterface.UiBuilder.Draw += DrawUI;
 			mPluginInterface.UiBuilder.OpenConfigUi += DrawConfigUI;
 
@@ -91,7 +94,7 @@ namespace WhatDidYouSay
 			mPluginInterface.LanguageChanged -= OnLanguageChanged;
 			mPluginInterface.UiBuilder.Draw -= DrawUI;
 			mPluginInterface.UiBuilder.OpenConfigUi -= DrawConfigUI;
-			mCommandManager.RemoveHandler( mTextCommandName );
+			mCommandManager.RemoveHandler( TextCommandName );
 
 			mUI?.Dispose();
 		}
@@ -112,25 +115,88 @@ namespace WhatDidYouSay
 			}
 
 			//	Set up the command handler with the current language.
-			if( mCommandManager.Commands.ContainsKey( mTextCommandName ) )
+			if( mCommandManager.Commands.ContainsKey( TextCommandName ) )
 			{
-				mCommandManager.RemoveHandler( mTextCommandName );
+				mCommandManager.RemoveHandler( TextCommandName );
 			}
-			mCommandManager.AddHandler( mTextCommandName, new CommandInfo( ProcessTextCommand )
+			mCommandManager.AddHandler( TextCommandName, new CommandInfo( ProcessTextCommand )
 			{
-				HelpMessage = Loc.Localize( "Plugin Text Command Description", "Opens the settings window." )
+				HelpMessage = String.Format( Loc.Localize( "Plugin Text Command Description", "Opens the settings window.  Using the subcommands \"{0}\" or \"{1}\" will disable or reenable, respectively, the plugin for the current zone." ), SubcommandName_Ban, SubcommandName_Unban )
 			} );
 		}
 
 		private void ProcessTextCommand( string command, string args )
 		{
-			if( args.ToLower() == "debug" )
+			if( args.ToLower() == SubcommandName_Debug.ToLower() )
 			{
 				mUI.DebugWindowVisible = !mUI.DebugWindowVisible;
+			}
+			else if( args.ToLower() == SubcommandName_Ban.ToLower() )
+			{
+				if( mClientState.TerritoryType > 0 )
+				{
+					if( !mConfiguration.mZoneConfigOverrideDict.ContainsKey( mClientState.TerritoryType ) )
+					{
+						mConfiguration.mZoneConfigOverrideDict.Add( mClientState.TerritoryType, new() );
+					}
+
+					if( mConfiguration.mZoneConfigOverrideDict.TryGetValue( mClientState.TerritoryType, out var zoneConfig ) )
+					{
+						zoneConfig.DisableForZone = true;
+						mChatGui.Print( String.Format( Loc.Localize( "Subcommand Response: Current Zone Banned", "NPC speech bubbles will now be ignored in {0}." ), GetNiceNameForZone( mClientState.TerritoryType ) ) );
+						mConfiguration.Save();
+					}
+					else
+					{
+						mChatGui.Print( String.Format( Loc.Localize( "Subcommand Response: Current Zone Banned (Error)", "Error: Unable to ban zone {0}." ), GetNiceNameForZone( mClientState.TerritoryType ) ) );
+					}
+				}
+			}
+			else if( args.ToLower() == SubcommandName_Unban.ToLower() )
+			{
+				if( mConfiguration.mZoneConfigOverrideDict.ContainsKey( mClientState.TerritoryType ) )
+				{
+					if( mConfiguration.mZoneConfigOverrideDict.Remove( mClientState.TerritoryType ) )
+					{
+						mChatGui.Print( String.Format( Loc.Localize( "Subcommand Response: Current Zone Unbanned", "NPC speech will now use your global settings in {0}." ), GetNiceNameForZone( mClientState.TerritoryType ) ) );
+						mConfiguration.Save();
+					}
+					else
+					{
+						mChatGui.Print( String.Format( Loc.Localize( "Subcommand Response: Current Zone Unbanned (Error)", "Error: Unable to unban zone {0}." ), GetNiceNameForZone( mClientState.TerritoryType ) ) );
+					}
+				}
+				else
+				{
+					//	Technically inaccurate, but effectively true from the user's perspective.
+					mChatGui.Print( String.Format( Loc.Localize( "Subcommand Response: Current Zone Unbanned", "NPC speech will now use your global settings in {0}." ), GetNiceNameForZone( mClientState.TerritoryType ) ) );
+				}
 			}
 			else
 			{
 				mUI.SettingsWindowVisible = !mUI.SettingsWindowVisible;
+			}
+		}
+
+		internal string GetNiceNameForZone( UInt32 territoryType )
+		{
+			var territoryTypeSheet = mDataManager.GetExcelSheet<TerritoryType>();
+			var contentFinderConditionSheet = mDataManager.GetExcelSheet<ContentFinderCondition>();
+
+			var territoryTypeForZone = territoryTypeSheet.GetRow( territoryType );
+			var contentFinderConditionName = territoryTypeForZone?.ContentFinderCondition?.Value?.Name;
+
+			if( contentFinderConditionName?.ToString().Trim().Length > 0 )
+			{
+				return contentFinderConditionName.ToString();
+			}
+			else if( territoryTypeForZone?.PlaceName.Value.Name.ToString().Trim().Length > 0 )
+			{
+				return territoryTypeForZone.PlaceName.Value.Name.ToString();
+			}
+			else
+			{
+				return $"{territoryType}";
 			}
 		}
 
@@ -395,7 +461,11 @@ namespace WhatDidYouSay
 		}
 
 		public string Name => "Say What?";
-		private const string mTextCommandName = "/saywhat";
+		internal static string TextCommandName => "/saywhat";
+		internal static string SubcommandName_Config => "config";
+		internal static string SubcommandName_Ban => "ban";
+		internal static string SubcommandName_Unban => "unban";
+		internal static string SubcommandName_Debug => "debug";
 
 		private readonly PluginUI mUI;
 		private readonly Configuration mConfiguration;
@@ -414,7 +484,7 @@ namespace WhatDidYouSay
 		private readonly ClientState mClientState;
 		private readonly DataManager mDataManager;
 		private readonly CommandManager mCommandManager;
-		private readonly Condition mCondition;
+		private readonly Dalamud.Game.ClientState.Conditions.Condition mCondition;
 		private readonly ChatGui mChatGui;
 	}
 }

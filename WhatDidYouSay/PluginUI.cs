@@ -4,15 +4,12 @@ using System.Numerics;
 
 using CheapLoc;
 
-using Dalamud.Data;
 using Dalamud.Game.ClientState;
 using Dalamud.Game.Text;
 using Dalamud.Plugin;
 
 using ImGuiNET;
 
-using Lumina.Excel;
-using Lumina.Excel.GeneratedSheets;
 
 namespace WhatDidYouSay
 {
@@ -21,13 +18,12 @@ namespace WhatDidYouSay
 	public class PluginUI : IDisposable
 	{
 		//	Construction
-		public PluginUI( Plugin plugin, Configuration configuration, DalamudPluginInterface pluginInterface, ClientState clientState, DataManager dataManager )
+		public PluginUI( Plugin plugin, Configuration configuration, DalamudPluginInterface pluginInterface, ClientState clientState )
 		{
 			mPlugin = plugin;
 			mConfiguration = configuration;
 			mPluginInterface = pluginInterface;
 			mClientState = clientState;
-			mDataManager = dataManager;
 		}
 
 		//	Destruction
@@ -147,7 +143,7 @@ namespace WhatDidYouSay
 
 		protected void DrawSettingsWindow_ZoneOverrides()
 		{
-			if( !SettingsWindowZoneOverridesVisible )
+			if( !SettingsWindowZoneOverridesVisible || !SettingsWindowVisible )
 			{
 				return;
 			}
@@ -168,25 +164,9 @@ namespace WhatDidYouSay
 				}
 				if( ImGui.BeginChild( "###ZoneOverrideZoneListChild", new( 300, 200 ), true ) )
 				{
-					var territoryTypeSheet = mDataManager.GetExcelSheet<TerritoryType>();
-					var contentFinderConditionSheet = mDataManager.GetExcelSheet<ContentFinderCondition>();
 					foreach( var item in mConfiguration.mZoneConfigOverrideDict )
 					{
-						string zoneName;
-						var territoryTypeForZone = territoryTypeSheet.GetRow( item.Key );
-						var contentFinderConditionName = territoryTypeForZone?.ContentFinderCondition?.Value?.Name;
-						if( contentFinderConditionName?.ToString().Trim().Length > 0 )
-						{
-							zoneName = contentFinderConditionName.ToString();
-						}
-						else if( territoryTypeForZone?.PlaceName.Value.Name.ToString().Trim().Length > 0 )
-						{
-							zoneName = territoryTypeForZone.PlaceName.Value.Name.ToString();
-						}
-						else
-						{
-							zoneName = $"{item.Key}";
-						}
+						string zoneName = mPlugin.GetNiceNameForZone( item.Key );
 						
 						if( ImGui.Selectable( zoneName, item.Key == mZoneOverrideSelectedTerritoryType ) )
 						{
@@ -356,7 +336,6 @@ namespace WhatDidYouSay
 		protected DalamudPluginInterface mPluginInterface;
 		protected Configuration mConfiguration;
 		protected ClientState mClientState;
-		protected DataManager mDataManager;
 
 		protected UInt32 mZoneOverrideSelectedTerritoryType = 0;
 		public bool WantToDeleteSelectedZone { get; private set; } = false;
