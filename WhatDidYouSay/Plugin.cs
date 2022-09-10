@@ -4,6 +4,7 @@ using System.IO;
 
 using CheapLoc;
 
+using Dalamud.Data;
 using Dalamud.Game;
 using Dalamud.Game.ClientState;
 using Dalamud.Game.ClientState.Conditions;
@@ -29,6 +30,7 @@ namespace WhatDidYouSay
 			Framework framework,
 			SigScanner sigScanner,
 			ClientState clientState,
+			DataManager dataManager,
 			CommandManager commandManager,
 			Condition condition,
 			ChatGui chatGui )
@@ -37,6 +39,7 @@ namespace WhatDidYouSay
 			mPluginInterface	= pluginInterface;
 			mFramework			= framework;
 			mClientState		= clientState;
+			mDataManager		= dataManager;
 			mCommandManager		= commandManager;
 			mCondition			= condition;
 			mChatGui			= chatGui;
@@ -55,9 +58,8 @@ namespace WhatDidYouSay
 				if( fpOpenChatBubble != IntPtr.Zero )
 				{
 					PluginLog.LogInformation( $"OpenChatBubble function signature found at 0x{fpOpenChatBubble:X}." );
-					OpenChatBubbleDelegate dOpenChatBubble = OpenChatBubbleDetour;
-					mOpenChatBubbleHook = new( fpOpenChatBubble, dOpenChatBubble );
-					mOpenChatBubbleHook.Enable();
+					mOpenChatBubbleHook = Hook<OpenChatBubbleDelegate>.FromAddress( fpOpenChatBubble, OpenChatBubbleDetour );
+					mOpenChatBubbleHook?.Enable();
 				}
 				else
 				{
@@ -66,7 +68,7 @@ namespace WhatDidYouSay
 			}
 
 			//	UI Initialization
-			mUI = new PluginUI( this, mConfiguration, pluginInterface, clientState );
+			mUI = new PluginUI( this, mConfiguration, pluginInterface, clientState, dataManager );
 			mPluginInterface.UiBuilder.Draw += DrawUI;
 			mPluginInterface.UiBuilder.OpenConfigUi += DrawConfigUI;
 
@@ -144,7 +146,12 @@ namespace WhatDidYouSay
 
 		unsafe private IntPtr OpenChatBubbleDetour( IntPtr pThis, GameObject* pActor, IntPtr pString, bool param3 )
 		{
-			if( pString != IntPtr.Zero && !mClientState.IsPvPExcludingDen )
+			ZoneSpecificConfig zoneConfig = null;
+			mConfiguration.mZoneConfigOverrideDict?.TryGetValue( mClientState.TerritoryType, out zoneConfig );
+
+			if( pString != IntPtr.Zero &&
+				!mClientState.IsPvPExcludingDen &&
+				( zoneConfig == null || !zoneConfig.DisableForZone ) )
 			{
 				//	Idk if the actor can ever be null, but if it can, assume that we should print the bubble just in case.  Otherwise, only don't print if the actor is a player.
 				if( pActor == null || pActor->ObjectKind != (byte)Dalamud.Game.ClientState.Objects.Enums.ObjectKind.Player )
@@ -208,10 +215,20 @@ namespace WhatDidYouSay
 				//	Clean up any expired records.
 				for( int i = mSpeechBubbleInfo.Count - 1; i >= 0; --i )
 				{
+					ZoneSpecificConfig zoneConfig = null;
+					mConfiguration.mZoneConfigOverrideDict?.TryGetValue( mClientState.TerritoryType, out zoneConfig );
 					long timeSinceLastSeen_mSec = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - mSpeechBubbleInfo[i].TimeLastSeen_mSec;
 					bool delete_OutOfInstance = mConfiguration.RepeatsAllowed && timeSinceLastSeen_mSec > Math.Max( 1, mConfiguration.TimeBeforeRepeatsAllowed_Sec ) * 1000;
 					bool delete_InInstance = mConfiguration.RepeatsAllowedInInstance && timeSinceLastSeen_mSec > Math.Max( 1, mConfiguration.TimeBeforeRepeatsAllowedInInstance_Sec ) * 1000;
-					if( mCondition[ConditionFlag.BoundByDuty] ? delete_InInstance : delete_OutOfInstance )
+					
+					if( zoneConfig != null )
+					{
+						if( zoneConfig.RepeatsAllowed && timeSinceLastSeen_mSec > Math.Max( 1, zoneConfig.TimeBeforeRepeatsAllowed_Sec ) * 1000 )
+						{
+							mSpeechBubbleInfo.RemoveAt( i );
+						}
+					}
+					else if( mCondition[ConditionFlag.BoundByDuty] ? delete_InInstance : delete_OutOfInstance )
 					{
 						mSpeechBubbleInfo.RemoveAt( i );
 					}
@@ -395,6 +412,7 @@ namespace WhatDidYouSay
 		private readonly DalamudPluginInterface mPluginInterface;
 		private readonly Framework mFramework;
 		private readonly ClientState mClientState;
+		private readonly DataManager mDataManager;
 		private readonly CommandManager mCommandManager;
 		private readonly Condition mCondition;
 		private readonly ChatGui mChatGui;

@@ -4,6 +4,7 @@ using System.Numerics;
 
 using CheapLoc;
 
+using Dalamud.Data;
 using Dalamud.Game.ClientState;
 using Dalamud.Game.Text;
 using Dalamud.Plugin;
@@ -20,12 +21,13 @@ namespace WhatDidYouSay
 	public class PluginUI : IDisposable
 	{
 		//	Construction
-		public PluginUI( Plugin plugin, Configuration configuration, DalamudPluginInterface pluginInterface, ClientState clientState )
+		public PluginUI( Plugin plugin, Configuration configuration, DalamudPluginInterface pluginInterface, ClientState clientState, DataManager dataManager )
 		{
 			mPlugin = plugin;
 			mConfiguration = configuration;
 			mPluginInterface = pluginInterface;
 			mClientState = clientState;
+			mDataManager = dataManager;
 		}
 
 		//	Destruction
@@ -37,6 +39,7 @@ namespace WhatDidYouSay
 		{
 			//	Draw the sub-windows.
 			DrawSettingsWindow();
+			DrawSettingsWindow_ZoneOverrides();
 			DrawDebugWindow();
 		}
 
@@ -116,6 +119,11 @@ namespace WhatDidYouSay
 				}
 				ImGui.Unindent();
 
+				if( ImGui.Button( Loc.Localize( "Button: Show Zone Overrides", "Manage Zone-Specific Settings" ) + "###ShowZoneOverridesButton" ) )
+				{
+					SettingsWindowZoneOverridesVisible = true;
+				}
+
 				ImGui.Spacing();
 				ImGui.Spacing();
 				ImGui.Spacing();
@@ -131,6 +139,115 @@ namespace WhatDidYouSay
 				{
 					mConfiguration.Save();
 					SettingsWindowVisible = false;
+				}
+			}
+
+			ImGui.End();
+		}
+
+		protected void DrawSettingsWindow_ZoneOverrides()
+		{
+			if( !SettingsWindowZoneOverridesVisible )
+			{
+				return;
+			}
+
+			if( ImGui.Begin( Loc.Localize( "Window Title: Config (Zone Overrides)", "\"Say What?\" Settings (Zone Overrides)" ) + "###\"Say What?\" Settings (Zone Overrides)",
+				ref mSettingsWindowZoneOverridesVisible,
+				ImGuiWindowFlags.AlwaysAutoResize | ImGuiWindowFlags.NoCollapse | ImGuiWindowFlags.NoScrollbar | ImGuiWindowFlags.NoScrollWithMouse ) )
+			{
+				if( ImGui.Button( Loc.Localize( "Button: Add Zone Override", "Add/Select Current Zone" ) + "###ZoneOverrideAddButton" ) &&
+					mClientState.TerritoryType > 0 )
+				{
+					if( !mConfiguration.mZoneConfigOverrideDict.ContainsKey( mClientState.TerritoryType ) )
+					{
+						mConfiguration.mZoneConfigOverrideDict.Add( mClientState.TerritoryType, new() );
+					}
+
+					mZoneOverrideSelectedTerritoryType = mClientState.TerritoryType;
+				}
+				if( ImGui.BeginChild( "###ZoneOverrideZoneListChild", new( 300, 200 ), true ) )
+				{
+					var territoryTypeSheet = mDataManager.GetExcelSheet<TerritoryType>();
+					var contentFinderConditionSheet = mDataManager.GetExcelSheet<ContentFinderCondition>();
+					foreach( var item in mConfiguration.mZoneConfigOverrideDict )
+					{
+						string zoneName;
+						var territoryTypeForZone = territoryTypeSheet.GetRow( item.Key );
+						var contentFinderConditionName = territoryTypeForZone?.ContentFinderCondition?.Value?.Name;
+						if( contentFinderConditionName?.ToString().Trim().Length > 0 )
+						{
+							zoneName = contentFinderConditionName.ToString();
+						}
+						else if( territoryTypeForZone?.PlaceName.Value.Name.ToString().Trim().Length > 0 )
+						{
+							zoneName = territoryTypeForZone.PlaceName.Value.Name.ToString();
+						}
+						else
+						{
+							zoneName = $"{item.Key}";
+						}
+						
+						if( ImGui.Selectable( zoneName, item.Key == mZoneOverrideSelectedTerritoryType ) )
+						{
+							mZoneOverrideSelectedTerritoryType = item.Key;
+						}
+					}
+					ImGui.EndChild();
+				}
+				ImGui.Spacing();
+				ImGui.Separator();
+				ImGui.Spacing();
+				if( mConfiguration.mZoneConfigOverrideDict.ContainsKey( mZoneOverrideSelectedTerritoryType ) )
+				{
+					var zoneConfig = mConfiguration.mZoneConfigOverrideDict[mZoneOverrideSelectedTerritoryType];
+
+					if( zoneConfig != null )
+					{
+						ImGui.Text( Loc.Localize( "Config Label: Zone Override Options", "Options for the selected zone:" ) );
+						ImGui.Checkbox( Loc.Localize( "Config Option: Disable for Zone.", "Ignore all NPC speech bubbles in this zone." ) + "###Disable for Zone Checkbox.", ref zoneConfig.mDisableForZone );
+						if( !zoneConfig.DisableForZone )
+						{
+							ImGui.Checkbox( Loc.Localize( "Config Option: Allow repeated speech to print to log.", "Allow repeated speech to print to log." ) + "###Allow repeated speech to print to log (zone override).", ref zoneConfig.mRepeatsAllowed );
+							ImGuiUtils.HelpMarker( Loc.Localize( "Help: Config Options Allow Repeated Speech", "If this is not checked, a given NPC speech bubble will never be repeated in the chat log until you change zones and come back." ) );
+							if( zoneConfig.RepeatsAllowed )
+							{
+								ImGui.Text( Loc.Localize( "Config Option: Time before repeated speech can be printed again.", "Time before repeats are allowed:" ) );
+								ImGui.SliderInt( "###Time before the same speech can be printed again (overworld).", ref zoneConfig.mTimeBeforeRepeatsAllowed_Sec, 1, 600, "%ds" );
+							}
+						}
+					}
+					else
+					{
+						ImGui.PushStyleColor( ImGuiCol.Text, 0xee4444ff );
+						ImGui.Text( Loc.Localize( "Error Message: Zone Override Config Null", "The selected zone override data is corrupted, please delete this zone override and try again." ) );
+						ImGui.PopStyleColor();
+					}
+
+					ImGui.PushStyleColor( ImGuiCol.Text, 0xee4444ff );
+					if( ImGui.Button( Loc.Localize( "Button: Delete", "Delete" ) + "###ZoneOverrideDeleteButton" ) )
+					{
+						WantToDeleteSelectedZone = true;
+					}
+					if( WantToDeleteSelectedZone )
+					{
+						ImGui.Text( Loc.Localize( "Label: Confirm Delete Label", "Confirm delete: " ) );
+						ImGui.SameLine();
+						if( ImGui.Button( Loc.Localize( "Button: Yes", "Yes" ) + "###Yes Button" ) )
+						{
+							mConfiguration.mZoneConfigOverrideDict.Remove( mZoneOverrideSelectedTerritoryType );
+							mZoneOverrideSelectedTerritoryType = 0;
+							WantToDeleteSelectedZone = false;
+						}
+						ImGui.PushStyleColor( ImGuiCol.Text, 0xffffffff );
+						ImGui.SameLine();
+						if( ImGui.Button( Loc.Localize( "Button: No", "No" ) + "###No Button" ) )
+						{
+							WantToDeleteSelectedZone = false;
+						}
+						ImGui.PopStyleColor();
+					}
+					ImGui.PopStyleColor();
 				}
 			}
 
@@ -239,6 +356,10 @@ namespace WhatDidYouSay
 		protected DalamudPluginInterface mPluginInterface;
 		protected Configuration mConfiguration;
 		protected ClientState mClientState;
+		protected DataManager mDataManager;
+
+		protected UInt32 mZoneOverrideSelectedTerritoryType = 0;
+		public bool WantToDeleteSelectedZone { get; private set; } = false;
 
 		//	Need a real backing field on the following properties for use with ImGui.
 		protected bool mSettingsWindowVisible = false;
@@ -246,6 +367,13 @@ namespace WhatDidYouSay
 		{
 			get { return mSettingsWindowVisible; }
 			set { mSettingsWindowVisible = value; }
+		}
+
+		protected bool mSettingsWindowZoneOverridesVisible = false;
+		public bool SettingsWindowZoneOverridesVisible
+		{
+			get { return mSettingsWindowZoneOverridesVisible; }
+			set { mSettingsWindowZoneOverridesVisible = value; }
 		}
 
 		protected bool mDebugWindowVisible = false;

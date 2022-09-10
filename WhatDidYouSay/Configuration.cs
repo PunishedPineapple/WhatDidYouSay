@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 
 using Dalamud.Configuration;
 using Dalamud.Game.Text;
@@ -86,6 +87,8 @@ namespace WhatDidYouSay
 			get { return (XivChatType)mChatChannelToUse; }
 			set { mChatChannelToUse = (int)value; }
 		}
+
+		public SortedDictionary<UInt32, ZoneSpecificConfig> mZoneConfigOverrideDict = new();
 
 		//  Plugin framework and related convenience functions below.
 		public void Initialize( DalamudPluginInterface pluginInterface )
