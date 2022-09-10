@@ -8,15 +8,15 @@ namespace WhatDidYouSay
 {
 	public class ZoneSpecificConfig
 	{
-		internal bool mDisableForZone = false;
-		internal bool DisableForZone
+		public bool mDisableForZone = false;
+		public bool DisableForZone
 		{
 			get { return mDisableForZone; }
 			set { mDisableForZone = value; }
 		}
 
-		internal bool mRepeatsAllowed = true;
-		internal bool RepeatsAllowed
+		public bool mRepeatsAllowed = true;
+		public bool RepeatsAllowed
 		{
 			get { return mRepeatsAllowed; }
 			set { mRepeatsAllowed = value; }
