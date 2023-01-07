@@ -80,6 +80,13 @@ namespace WhatDidYouSay
 			set { mMinTimeBetweenChatPrints_mSec= value; }
 		}
 
+		public string mDefaultSenderName = "NPC";
+		public string DefaultSenderName
+		{
+			get { return mDefaultSenderName; }
+			set { mDefaultSenderName = value; }
+		}
+
 		//	Backing field as an int to work with ImGui.
 		public int mChatChannelToUse = (int)XivChatType.NPCDialogueAnnouncements;
 		public XivChatType ChatChannelToUse

@@ -1,5 +1,6 @@
 ﻿using System;
 using System.IO;
+using System.Linq;
 using System.Numerics;
 
 using CheapLoc;
@@ -24,6 +25,8 @@ namespace WhatDidYouSay
 			mConfiguration = configuration;
 			mPluginInterface = pluginInterface;
 			mClientState = clientState;
+
+			mDefaultSenderNameConfigString = mConfiguration.DefaultSenderName;
 		}
 
 		//	Destruction
@@ -79,6 +82,21 @@ namespace WhatDidYouSay
 				ImGui.Spacing();
 
 				ImGui.Checkbox( Loc.Localize( "Config Option: Keep Line Breaks", "Keep line breaks." ) + "###Keep line breaks.", ref mConfiguration.mKeepLineBreaks );
+
+				ImGui.Spacing();
+				ImGui.Text( Loc.Localize( "Config Option: Default Speaker Name", "Default Speaker Name: " ) );
+				ImGuiUtils.HelpMarker( Loc.Localize( "Help: Default Speaker Name", "The default name to show in the chat log for messages from NPCs that lack names." ) );
+				ImGui.InputText( "###Default Speaker Name Input", ref mDefaultSenderNameConfigString, 20 );
+				if( Plugin.IsValidSenderName( mDefaultSenderNameConfigString ) )
+				{
+					mConfiguration.DefaultSenderName = mDefaultSenderNameConfigString;
+				}
+				else
+				{
+					ImGui.PushStyleColor( ImGuiCol.Text, 0xee4444ff );
+					ImGui.TextWrapped( Loc.Localize( "Error Message: Default Speaker Name", "The specified name is invalid; names must contain 20 total characters or fewer, and use only A-Z, a-z, ', -, and space." ) );
+					ImGui.PopStyleColor();
+				}
 
 				ImGui.Spacing();
 
@@ -339,6 +357,8 @@ namespace WhatDidYouSay
 
 		protected UInt32 mZoneOverrideSelectedTerritoryType = 0;
 		public bool WantToDeleteSelectedZone { get; private set; } = false;
+
+		protected string mDefaultSenderNameConfigString = "NPC";
 
 		//	Need a real backing field on the following properties for use with ImGui.
 		protected bool mSettingsWindowVisible = false;

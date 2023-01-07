@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 
 using CheapLoc;
 
@@ -50,6 +51,7 @@ namespace WhatDidYouSay
 			//	Configuration
 			mConfiguration = mPluginInterface.GetPluginConfig() as Configuration ?? new Configuration();
 			mConfiguration.Initialize( mPluginInterface );
+			if( !IsValidSenderName( mConfiguration.DefaultSenderName ) ) mConfiguration.DefaultSenderName = "NPC";
 
 			//	Localization and Command Initialization
 			OnLanguageChanged( mPluginInterface.UiLanguage );
@@ -351,6 +353,13 @@ namespace WhatDidYouSay
 			long currentTime_mSec = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
 			if( currentTime_mSec - mLastTimeChatPrinted_mSec >= mConfiguration.MinTimeBetweenChatPrints_mSec )
 			{
+				if( speakerName.TextValue.Length == 0 &&
+					mConfiguration.DefaultSenderName.Length > 0 &&
+					IsValidSenderName( mConfiguration.DefaultSenderName ) )
+				{
+					speakerName = mConfiguration.DefaultSenderName;
+				}
+
 				var chatEntry = new Dalamud.Game.Text.XivChatEntry
 				{
 					Type = mConfiguration.ChatChannelToUse,
@@ -417,6 +426,15 @@ namespace WhatDidYouSay
 			return newStr;
 		}
 
+		internal static bool IsValidSenderName( string str )
+		{
+			return str.Length <= 20 && str.All( x => {
+						return	( x >= 'A' && x <= 'Z' ) ||
+								( x >= 'a' && x <= 'z' ) ||
+								( x is ' ' or '\'' or '-' );
+					} );
+		}
+
 		private void OnTerritoryChanged( object sender, UInt16 ID )
 		{
 			ClearSpeechBubbleHistory();
@@ -466,6 +484,9 @@ namespace WhatDidYouSay
 		internal static string SubcommandName_Ban => "ban";
 		internal static string SubcommandName_Unban => "unban";
 		internal static string SubcommandName_Debug => "debug";
+
+		//***** TODO: Maybe validate by regex, but can't figure out how to combine multiple unicode property escapes
+		//private const string ValidSenderNamePattern = @"^[\p{L}'\- ]{0,20}$";
 
 		private readonly PluginUI mUI;
 		private readonly Configuration mConfiguration;
