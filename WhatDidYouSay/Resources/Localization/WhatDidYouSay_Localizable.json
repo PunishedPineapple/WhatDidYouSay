@@ -1,7 +1,23 @@
 {
   "Plugin Text Command Description": {
-    "message": "Opens the settings window.",
+    "message": "Opens the settings window.  Using the subcommands \"{0}\" or \"{1}\" will disable or reenable, respectively, the plugin for the current zone.",
     "description": "Plugin.OnLanguageChanged"
+  },
+  "Subcommand Response: Current Zone Banned": {
+    "message": "NPC speech bubbles will now be ignored in {0}.",
+    "description": "Plugin.ProcessTextCommand"
+  },
+  "Subcommand Response: Current Zone Banned (Error)": {
+    "message": "Error: Unable to ban zone {0}.",
+    "description": "Plugin.ProcessTextCommand"
+  },
+  "Subcommand Response: Current Zone Unbanned": {
+    "message": "NPC speech will now use your global settings in {0}.",
+    "description": "Plugin.ProcessTextCommand"
+  },
+  "Subcommand Response: Current Zone Unbanned (Error)": {
+    "message": "Error: Unable to unban zone {0}.",
+    "description": "Plugin.ProcessTextCommand"
   },
   "Window Title: Config": {
     "message": "\"Say What?\" Settings",
@@ -25,6 +41,18 @@
   },
   "Config Option: Keep Line Breaks": {
     "message": "Keep line breaks.",
+    "description": "PluginUI.DrawSettingsWindow"
+  },
+  "Config Option: Default Speaker Name": {
+    "message": "Default Speaker Name: ",
+    "description": "PluginUI.DrawSettingsWindow"
+  },
+  "Help: Default Speaker Name": {
+    "message": "The default name to show in the chat log for messages from NPCs that lack names.",
+    "description": "PluginUI.DrawSettingsWindow"
+  },
+  "Error Message: Default Speaker Name": {
+    "message": "The specified name is invalid; names must contain 20 total characters or fewer, and use only A-Z, a-z, ', -, and space.",
     "description": "PluginUI.DrawSettingsWindow"
   },
   "Config Section: Prevent Duplicate Messages": {
@@ -55,9 +83,49 @@
     "message": "In Instance:",
     "description": "PluginUI.DrawSettingsWindow"
   },
+  "Button: Show Zone Overrides": {
+    "message": "Manage Zone-Specific Settings",
+    "description": "PluginUI.DrawSettingsWindow"
+  },
   "Button: Save and Close": {
     "message": "Save and Close",
     "description": "PluginUI.DrawSettingsWindow"
+  },
+  "Window Title: Config (Zone Overrides)": {
+    "message": "\"Say What?\" Settings (Zone Overrides)",
+    "description": "PluginUI.DrawSettingsWindow_ZoneOverrides"
+  },
+  "Button: Add Zone Override": {
+    "message": "Add/Select Current Zone",
+    "description": "PluginUI.DrawSettingsWindow_ZoneOverrides"
+  },
+  "Config Label: Zone Override Options": {
+    "message": "Options for the selected zone:",
+    "description": "PluginUI.DrawSettingsWindow_ZoneOverrides"
+  },
+  "Config Option: Disable for Zone.": {
+    "message": "Ignore all NPC speech bubbles in this zone.",
+    "description": "PluginUI.DrawSettingsWindow_ZoneOverrides"
+  },
+  "Error Message: Zone Override Config Null": {
+    "message": "The selected zone override data is corrupted, please delete this zone override and try again.",
+    "description": "PluginUI.DrawSettingsWindow_ZoneOverrides"
+  },
+  "Button: Delete": {
+    "message": "Delete",
+    "description": "PluginUI.DrawSettingsWindow_ZoneOverrides"
+  },
+  "Label: Confirm Delete Label": {
+    "message": "Confirm delete: ",
+    "description": "PluginUI.DrawSettingsWindow_ZoneOverrides"
+  },
+  "Button: Yes": {
+    "message": "Yes",
+    "description": "PluginUI.DrawSettingsWindow_ZoneOverrides"
+  },
+  "Button: No": {
+    "message": "No",
+    "description": "PluginUI.DrawSettingsWindow_ZoneOverrides"
   },
   "Window Title: Debug Data": {
     "message": "\"Say What?\" Debug Data",
