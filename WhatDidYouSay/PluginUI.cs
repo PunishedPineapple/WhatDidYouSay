@@ -16,7 +16,7 @@ namespace WhatDidYouSay;
 public class PluginUI : IDisposable
 {
 	//	Construction
-	public PluginUI( Plugin plugin, Configuration configuration, DalamudPluginInterface pluginInterface )
+	public PluginUI( Plugin plugin, Configuration configuration, IDalamudPluginInterface pluginInterface )
 	{
 		mPlugin = plugin;
 		mConfiguration = configuration;
@@ -326,10 +326,10 @@ public class PluginUI : IDisposable
 	{
 		return Service.ClientState.ClientLanguage switch
 		{
-			Dalamud.ClientLanguage.Japanese => "NPC会話",
-			Dalamud.ClientLanguage.English => "NPC Dialogue",
-			Dalamud.ClientLanguage.German => "NPC-Gespräche",
-			Dalamud.ClientLanguage.French => "Dialogues des PNJ",
+			Dalamud.Game.ClientLanguage.Japanese => "NPC会話",
+			Dalamud.Game.ClientLanguage.English => "NPC Dialogue",
+			Dalamud.Game.ClientLanguage.German => "NPC-Gespräche",
+			Dalamud.Game.ClientLanguage.French => "Dialogues des PNJ",
 			_ => "NPC Dialogue"
 		};
 	}
@@ -338,16 +338,16 @@ public class PluginUI : IDisposable
 	{
 		return Service.ClientState.ClientLanguage switch
 		{
-			Dalamud.ClientLanguage.Japanese => "NPC会話（アナウンス）",
-			Dalamud.ClientLanguage.English => "NPC Dialogue (Announcements)",
-			Dalamud.ClientLanguage.German => "Nachrichten von NPCs",
-			Dalamud.ClientLanguage.French => "Annonces des PNJ",
+			Dalamud.Game.ClientLanguage.Japanese => "NPC会話（アナウンス）",
+			Dalamud.Game.ClientLanguage.English => "NPC Dialogue (Announcements)",
+			Dalamud.Game.ClientLanguage.German => "Nachrichten von NPCs",
+			Dalamud.Game.ClientLanguage.French => "Annonces des PNJ",
 			_ => "NPC Dialogue (Announcements)"
 		};
 	}
 
 	protected Plugin mPlugin;
-	protected DalamudPluginInterface mPluginInterface;
+	protected IDalamudPluginInterface mPluginInterface;
 	protected Configuration mConfiguration;
 
 	protected UInt32 mZoneOverrideSelectedTerritoryType = 0;

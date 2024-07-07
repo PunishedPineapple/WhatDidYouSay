@@ -98,7 +98,7 @@ public class Configuration : IPluginConfiguration
 	public SortedDictionary<UInt32, ZoneSpecificConfig> mZoneConfigOverrideDict = new();
 
 	//  Plugin framework and related convenience functions below.
-	public void Initialize( DalamudPluginInterface pluginInterface )
+	public void Initialize( IDalamudPluginInterface pluginInterface )
 	{
 		mPluginInterface = pluginInterface;
 	}
@@ -109,7 +109,7 @@ public class Configuration : IPluginConfiguration
 	}
 
 	[NonSerialized]
-	protected DalamudPluginInterface mPluginInterface;
+	protected IDalamudPluginInterface mPluginInterface;
 
 	public int Version { get; set; } = 0;
 }

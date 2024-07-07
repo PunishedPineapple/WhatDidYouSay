@@ -27,7 +27,7 @@ namespace WhatDidYouSay;
 public sealed class Plugin : IDalamudPlugin
 {
 	//	Initialization
-	public Plugin( DalamudPluginInterface pluginInterface )
+	public Plugin( IDalamudPluginInterface pluginInterface )
 	{
 		//	API Access
 		pluginInterface.Create<Service>();
@@ -44,10 +44,10 @@ public sealed class Plugin : IDalamudPlugin
 		//	Hook
 		unsafe
 		{
-			IntPtr fpOpenChatBubble = Service.SigScanner.ScanText( "E8 ?? ?? ?? ?? F6 86 ?? ?? ?? ?? ?? C7 46 ?? ?? ?? ?? ??" );
+			IntPtr fpOpenChatBubble = Service.SigScanner.ScanText( "E8 ?? ?? ?? FF 48 8B 7C 24 48 C7 46 0C 01 00 00 00" );
 			if( fpOpenChatBubble != IntPtr.Zero )
 			{
-				PluginLog.LogInformation( $"OpenChatBubble function signature found at 0x{fpOpenChatBubble:X}." );
+				Service.PluginLog.Information( $"OpenChatBubble function signature found at 0x{fpOpenChatBubble:X}." );
 				mOpenChatBubbleHook = Service.GameInteropProvider.HookFromAddress<OpenChatBubbleDelegate>( fpOpenChatBubble, OpenChatBubbleDetour );
 				mOpenChatBubbleHook?.Enable();
 			}
@@ -90,7 +90,7 @@ public sealed class Plugin : IDalamudPlugin
 	{
 		var allowedLang = new List<string>{ /*"es", "fr", "ja"*/ };
 
-		PluginLog.Information( "Trying to set up Loc for culture {0}", langCode );
+		Service.PluginLog.Information( "Trying to set up Loc for culture {0}", langCode );
 
 		if( allowedLang.Contains( langCode ) )
 		{
@@ -207,7 +207,7 @@ public sealed class Plugin : IDalamudPlugin
 			( zoneConfig == null || !zoneConfig.DisableForZone ) )
 		{
 			//	Idk if the actor can ever be null, but if it can, assume that we should print the bubble just in case.  Otherwise, only don't print if the actor is a player.
-			if( pActor == null || pActor->ObjectKind != (byte)Dalamud.Game.ClientState.Objects.Enums.ObjectKind.Player )
+			if( pActor == null || (byte)pActor->ObjectKind != (byte)Dalamud.Game.ClientState.Objects.Enums.ObjectKind.Player )
 			{
 				long currentTime_mSec = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
 
@@ -236,7 +236,7 @@ public sealed class Plugin : IDalamudPlugin
 		return mOpenChatBubbleHook.Original( pThis, pActor, pString, param3 );
 	}
 
-	private void OnChatMessage( Dalamud.Game.Text.XivChatType type, UInt32 timestamp, ref SeString sender, ref SeString message, ref bool isHandled )
+	private void OnChatMessage( XivChatType type, Int32 timestamp, ref SeString sender, ref SeString message, ref bool isHandled )
 	{
 		//	We want to keep a short record of NPC dialogue messages that the game sends itself, because
 		//	in some cases, these can duplicate speech bubbles.  We'll use these to avoid duplicate log lines.
@@ -485,5 +485,5 @@ public sealed class Plugin : IDalamudPlugin
 	private readonly List<SpeechBubbleInfo> mGameChatInfo = new();
 	private long mLastTimeChatPrinted_mSec;
 
-	private readonly DalamudPluginInterface mPluginInterface;
+	private readonly IDalamudPluginInterface mPluginInterface;
 }

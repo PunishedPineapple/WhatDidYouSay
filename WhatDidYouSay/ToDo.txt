@@ -1,4 +1,7 @@
-﻿To Do:
+﻿Bugs:
+	-Remove line breaks isn't always working.  Might need to add back in non-SeString line break handling as well.
+
+To Do:
 	-Translations
 	-Make icon scale better.
 	-Should we track the speaker object ID as well, and have an alternate comparison options?
