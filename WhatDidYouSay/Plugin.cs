@@ -197,7 +197,7 @@ public sealed class Plugin : IDalamudPlugin
 		mUI.SettingsWindowVisible = true;
 	}
 
-	unsafe private IntPtr OpenChatBubbleDetour( IntPtr pThis, GameObject* pActor, IntPtr pString, byte param3, Int32 param4 )
+	unsafe private void OpenChatBubbleDetour( IntPtr pThis, GameObject* pActor, IntPtr pString, byte param3, Int32 param4 )
 	{
 		ZoneSpecificConfig zoneConfig = null;
 		mConfiguration.mZoneConfigOverrideDict?.TryGetValue( Service.ClientState.TerritoryType, out zoneConfig );
@@ -233,7 +233,7 @@ public sealed class Plugin : IDalamudPlugin
 			}
 		}
 
-		return mOpenChatBubbleHook.Original( pThis, pActor, pString, param3, param4 );
+		mOpenChatBubbleHook.Original( pThis, pActor, pString, param3, param4 );
 	}
 
 	private void OnChatMessage( XivChatType type, Int32 timestamp, ref SeString sender, ref SeString message, ref bool isHandled )
@@ -477,8 +477,8 @@ public sealed class Plugin : IDalamudPlugin
 	private readonly Configuration mConfiguration;
 
 	//	Open bubble param3 seems to be related to object validity maybe, and param4 seems like some kind of offset, possibly
-	//	based on object rotation.  This function is probably actually a void return too, but that shouldn't really matter.
-	private unsafe delegate IntPtr OpenChatBubbleDelegate( IntPtr pThis, GameObject* pActor, IntPtr pString, byte param3, Int32 param4 );
+	//	based on object rotation, or may be a bone index for attachment.
+	private unsafe delegate void OpenChatBubbleDelegate( IntPtr pThis, GameObject* pActor, IntPtr pString, byte param3, Int32 param4 );
 	private readonly Hook<OpenChatBubbleDelegate> mOpenChatBubbleHook;
 
 	private readonly Object mSpeechBubbleInfoLockObj = new();
