@@ -18,7 +18,7 @@ internal static class ImGuiUtils
 			ImGui.SetMouseCursor( ImGuiMouseCursor.Hand );
 			if( ImGui.IsMouseClicked( ImGuiMouseButton.Left ) )
 			{
-				Process.Start( new ProcessStartInfo( URL ) { UseShellExecute = true } );
+				Dalamud.Utility.Util.OpenLink( URL );
 			}
 
 			AddUnderline( ImGui.GetStyle().Colors[(int)ImGuiCol.ButtonHovered], 1.0f );
