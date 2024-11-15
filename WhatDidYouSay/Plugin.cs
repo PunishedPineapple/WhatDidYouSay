@@ -11,7 +11,6 @@ using Dalamud.Game.Text;
 using Dalamud.Game.Text.SeStringHandling;
 using Dalamud.Game.Text.SeStringHandling.Payloads;
 using Dalamud.Hooking;
-using Dalamud.Logging;
 using Dalamud.Memory;
 using Dalamud.Plugin;
 using Dalamud.Plugin.Services;
@@ -19,8 +18,6 @@ using Dalamud.Plugin.Services;
 using FFXIVClientStructs.FFXIV.Client.Game.Object;
 
 using Lumina.Excel.GeneratedSheets;
-
-using WhatDidYouSay.Services;
 
 namespace WhatDidYouSay;
 
@@ -30,7 +27,7 @@ public sealed class Plugin : IDalamudPlugin
 	public Plugin( IDalamudPluginInterface pluginInterface )
 	{
 		//	API Access
-		pluginInterface.Create<Service>();
+		pluginInterface.Create<DalamudAPI>();
 		mPluginInterface = pluginInterface;
 		
 		//	Configuration
@@ -44,11 +41,11 @@ public sealed class Plugin : IDalamudPlugin
 		//	Hook
 		unsafe
 		{
-			IntPtr fpOpenChatBubble = Service.SigScanner.ScanText( "E8 ?? ?? ?? FF 48 8B 7C 24 48 C7 46 0C 01 00 00 00" );
+			IntPtr fpOpenChatBubble = DalamudAPI.SigScanner.ScanText( "E8 ?? ?? ?? FF 48 8B 7C 24 48 C7 46 0C 01 00 00 00" );
 			if( fpOpenChatBubble != IntPtr.Zero )
 			{
-				Service.PluginLog.Information( $"OpenChatBubble function signature found at 0x{fpOpenChatBubble:X}." );
-				mOpenChatBubbleHook = Service.GameInteropProvider.HookFromAddress<OpenChatBubbleDelegate>( fpOpenChatBubble, OpenChatBubbleDetour );
+				DalamudAPI.PluginLog.Information( $"OpenChatBubble function signature found at 0x{fpOpenChatBubble:X}." );
+				mOpenChatBubbleHook = DalamudAPI.GameInteropProvider.HookFromAddress<OpenChatBubbleDelegate>( fpOpenChatBubble, OpenChatBubbleDetour );
 				mOpenChatBubbleHook?.Enable();
 			}
 			else
@@ -64,9 +61,9 @@ public sealed class Plugin : IDalamudPlugin
 
 		//	Event Subscription
 		mPluginInterface.LanguageChanged += OnLanguageChanged;
-		Service.ClientState.TerritoryChanged += OnTerritoryChanged;
-		Service.Framework.Update += OnGameFrameworkUpdate;
-		Service.ChatGui.ChatMessage += OnChatMessage;
+		DalamudAPI.ClientState.TerritoryChanged += OnTerritoryChanged;
+		DalamudAPI.Framework.Update += OnGameFrameworkUpdate;
+		DalamudAPI.ChatGui.ChatMessage += OnChatMessage;
 	}
 
 	//	Cleanup
@@ -75,13 +72,13 @@ public sealed class Plugin : IDalamudPlugin
 		mOpenChatBubbleHook?.Disable();
 		mOpenChatBubbleHook?.Dispose();
 
-		Service.ChatGui.ChatMessage -= OnChatMessage;
-		Service.Framework.Update -= OnGameFrameworkUpdate;
-		Service.ClientState.TerritoryChanged -= OnTerritoryChanged;
+		DalamudAPI.ChatGui.ChatMessage -= OnChatMessage;
+		DalamudAPI.Framework.Update -= OnGameFrameworkUpdate;
+		DalamudAPI.ClientState.TerritoryChanged -= OnTerritoryChanged;
 		mPluginInterface.LanguageChanged -= OnLanguageChanged;
 		mPluginInterface.UiBuilder.Draw -= DrawUI;
 		mPluginInterface.UiBuilder.OpenConfigUi -= DrawConfigUI;
-		Service.CommandManager.RemoveHandler( TextCommandName );
+		DalamudAPI.CommandManager.RemoveHandler( TextCommandName );
 
 		mUI?.Dispose();
 	}
@@ -90,7 +87,7 @@ public sealed class Plugin : IDalamudPlugin
 	{
 		var allowedLang = new List<string>{ /*"es", "fr", "ja"*/ };
 
-		Service.PluginLog.Information( "Trying to set up Loc for culture {0}", langCode );
+		DalamudAPI.PluginLog.Information( "Trying to set up Loc for culture {0}", langCode );
 
 		if( allowedLang.Contains( langCode ) )
 		{
@@ -102,11 +99,11 @@ public sealed class Plugin : IDalamudPlugin
 		}
 
 		//	Set up the command handler with the current language.
-		if( Service.CommandManager.Commands.ContainsKey( TextCommandName ) )
+		if( DalamudAPI.CommandManager.Commands.ContainsKey( TextCommandName ) )
 		{
-			Service.CommandManager.RemoveHandler( TextCommandName );
+			DalamudAPI.CommandManager.RemoveHandler( TextCommandName );
 		}
-		Service.CommandManager.AddHandler( TextCommandName, new CommandInfo( ProcessTextCommand )
+		DalamudAPI.CommandManager.AddHandler( TextCommandName, new CommandInfo( ProcessTextCommand )
 		{
 			HelpMessage = String.Format( Loc.Localize( "Plugin Text Command Description", "Opens the settings window.  Using the subcommands \"{0}\" or \"{1}\" will disable or reenable, respectively, the plugin for the current zone." ), SubcommandName_Ban, SubcommandName_Unban )
 		} );
@@ -120,43 +117,43 @@ public sealed class Plugin : IDalamudPlugin
 		}
 		else if( args.ToLower() == SubcommandName_Ban.ToLower() )
 		{
-			if( Service.ClientState.TerritoryType > 0 )
+			if( DalamudAPI.ClientState.TerritoryType > 0 )
 			{
-				if( !mConfiguration.mZoneConfigOverrideDict.ContainsKey( Service.ClientState.TerritoryType ) )
+				if( !mConfiguration.mZoneConfigOverrideDict.ContainsKey( DalamudAPI.ClientState.TerritoryType ) )
 				{
-					mConfiguration.mZoneConfigOverrideDict.Add( Service.ClientState.TerritoryType, new() );
+					mConfiguration.mZoneConfigOverrideDict.Add( DalamudAPI.ClientState.TerritoryType, new() );
 				}
 
-				if( mConfiguration.mZoneConfigOverrideDict.TryGetValue( Service.ClientState.TerritoryType, out var zoneConfig ) )
+				if( mConfiguration.mZoneConfigOverrideDict.TryGetValue( DalamudAPI.ClientState.TerritoryType, out var zoneConfig ) )
 				{
 					zoneConfig.DisableForZone = true;
-					Service.ChatGui.Print( String.Format( Loc.Localize( "Subcommand Response: Current Zone Banned", "NPC speech bubbles will now be ignored in {0}." ), GetNiceNameForZone( Service.ClientState.TerritoryType ) ) );
+					DalamudAPI.ChatGui.Print( String.Format( Loc.Localize( "Subcommand Response: Current Zone Banned", "NPC speech bubbles will now be ignored in {0}." ), GetNiceNameForZone( DalamudAPI.ClientState.TerritoryType ) ) );
 					mConfiguration.Save();
 				}
 				else
 				{
-					Service.ChatGui.Print( String.Format( Loc.Localize( "Subcommand Response: Current Zone Banned (Error)", "Error: Unable to ban zone {0}." ), GetNiceNameForZone( Service.ClientState.TerritoryType ) ) );
+					DalamudAPI.ChatGui.Print( String.Format( Loc.Localize( "Subcommand Response: Current Zone Banned (Error)", "Error: Unable to ban zone {0}." ), GetNiceNameForZone( DalamudAPI.ClientState.TerritoryType ) ) );
 				}
 			}
 		}
 		else if( args.ToLower() == SubcommandName_Unban.ToLower() )
 		{
-			if( mConfiguration.mZoneConfigOverrideDict.ContainsKey( Service.ClientState.TerritoryType ) )
+			if( mConfiguration.mZoneConfigOverrideDict.ContainsKey( DalamudAPI.ClientState.TerritoryType ) )
 			{
-				if( mConfiguration.mZoneConfigOverrideDict.Remove( Service.ClientState.TerritoryType ) )
+				if( mConfiguration.mZoneConfigOverrideDict.Remove( DalamudAPI.ClientState.TerritoryType ) )
 				{
-					Service.ChatGui.Print( String.Format( Loc.Localize( "Subcommand Response: Current Zone Unbanned", "NPC speech will now use your global settings in {0}." ), GetNiceNameForZone( Service.ClientState.TerritoryType ) ) );
+					DalamudAPI.ChatGui.Print( String.Format( Loc.Localize( "Subcommand Response: Current Zone Unbanned", "NPC speech will now use your global settings in {0}." ), GetNiceNameForZone( DalamudAPI.ClientState.TerritoryType ) ) );
 					mConfiguration.Save();
 				}
 				else
 				{
-					Service.ChatGui.Print( String.Format( Loc.Localize( "Subcommand Response: Current Zone Unbanned (Error)", "Error: Unable to unban zone {0}." ), GetNiceNameForZone( Service.ClientState.TerritoryType ) ) );
+					DalamudAPI.ChatGui.Print( String.Format( Loc.Localize( "Subcommand Response: Current Zone Unbanned (Error)", "Error: Unable to unban zone {0}." ), GetNiceNameForZone( DalamudAPI.ClientState.TerritoryType ) ) );
 				}
 			}
 			else
 			{
 				//	Technically inaccurate, but effectively true from the user's perspective.
-				Service.ChatGui.Print( String.Format( Loc.Localize( "Subcommand Response: Current Zone Unbanned", "NPC speech will now use your global settings in {0}." ), GetNiceNameForZone( Service.ClientState.TerritoryType ) ) );
+				DalamudAPI.ChatGui.Print( String.Format( Loc.Localize( "Subcommand Response: Current Zone Unbanned", "NPC speech will now use your global settings in {0}." ), GetNiceNameForZone( DalamudAPI.ClientState.TerritoryType ) ) );
 			}
 		}
 		else
@@ -167,8 +164,8 @@ public sealed class Plugin : IDalamudPlugin
 
 	internal string GetNiceNameForZone( UInt32 territoryType )
 	{
-		var territoryTypeSheet = Service.DataManager.GetExcelSheet<TerritoryType>();
-		var contentFinderConditionSheet = Service.DataManager.GetExcelSheet<ContentFinderCondition>();
+		var territoryTypeSheet = DalamudAPI.DataManager.GetExcelSheet<TerritoryType>();
+		var contentFinderConditionSheet = DalamudAPI.DataManager.GetExcelSheet<ContentFinderCondition>();
 
 		var territoryTypeForZone = territoryTypeSheet.GetRow( territoryType );
 		var contentFinderConditionName = territoryTypeForZone?.ContentFinderCondition?.Value?.Name;
@@ -202,10 +199,10 @@ public sealed class Plugin : IDalamudPlugin
 		try
 		{
 			ZoneSpecificConfig zoneConfig = null;
-			mConfiguration.mZoneConfigOverrideDict?.TryGetValue( Service.ClientState.TerritoryType, out zoneConfig );
+			mConfiguration.mZoneConfigOverrideDict?.TryGetValue( DalamudAPI.ClientState.TerritoryType, out zoneConfig );
 
 			if( pString != IntPtr.Zero &&
-				!Service.ClientState.IsPvPExcludingDen &&
+				!DalamudAPI.ClientState.IsPvPExcludingDen &&
 				( zoneConfig == null || !zoneConfig.DisableForZone ) )
 			{
 				//	Idk if the actor can ever be null, but if it can, assume that we should print the bubble just in case.  Otherwise, only don't print if the actor is a player.
@@ -266,7 +263,7 @@ public sealed class Plugin : IDalamudPlugin
 
 	unsafe private void OnGameFrameworkUpdate( IFramework framework )
 	{
-		if( !Service.ClientState.IsLoggedIn ) return;
+		if( !DalamudAPI.ClientState.IsLoggedIn ) return;
 
 		lock( mSpeechBubbleInfoLockObj )
 		{
@@ -274,7 +271,7 @@ public sealed class Plugin : IDalamudPlugin
 			for( int i = mSpeechBubbleInfo.Count - 1; i >= 0; --i )
 			{
 				ZoneSpecificConfig zoneConfig = null;
-				mConfiguration.mZoneConfigOverrideDict?.TryGetValue( Service.ClientState.TerritoryType, out zoneConfig );
+				mConfiguration.mZoneConfigOverrideDict?.TryGetValue( DalamudAPI.ClientState.TerritoryType, out zoneConfig );
 				long timeSinceLastSeen_mSec = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - mSpeechBubbleInfo[i].TimeLastSeen_mSec;
 				bool delete_OutOfInstance = mConfiguration.RepeatsAllowed && timeSinceLastSeen_mSec > Math.Max( 1, mConfiguration.TimeBeforeRepeatsAllowed_Sec ) * 1000;
 				bool delete_InInstance = mConfiguration.RepeatsAllowedInInstance && timeSinceLastSeen_mSec > Math.Max( 1, mConfiguration.TimeBeforeRepeatsAllowedInInstance_Sec ) * 1000;
@@ -286,7 +283,7 @@ public sealed class Plugin : IDalamudPlugin
 						mSpeechBubbleInfo.RemoveAt( i );
 					}
 				}
-				else if( Service.Condition[ConditionFlag.BoundByDuty] ? delete_InInstance : delete_OutOfInstance )
+				else if( DalamudAPI.Condition[ConditionFlag.BoundByDuty] ? delete_InInstance : delete_OutOfInstance )
 				{
 					mSpeechBubbleInfo.RemoveAt( i );
 				}
@@ -357,7 +354,7 @@ public sealed class Plugin : IDalamudPlugin
 				Message = msg
 			};
 
-			Service.ChatGui.Print( chatEntry );
+			DalamudAPI.ChatGui.Print( chatEntry );
 			mLastTimeChatPrinted_mSec = currentTime_mSec;
 			return true;
 		}

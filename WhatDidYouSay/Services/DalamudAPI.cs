@@ -2,9 +2,9 @@
 using Dalamud.IoC;
 using Dalamud.Plugin.Services;
 
-namespace WhatDidYouSay.Services;
+namespace WhatDidYouSay;
 
-internal class Service
+internal class DalamudAPI
 {
 	[PluginService] internal static IFramework Framework { get; private set; } = null!;
 	[PluginService] internal static IClientState ClientState { get; private set; } = null!;

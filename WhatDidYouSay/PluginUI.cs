@@ -9,8 +9,6 @@ using Dalamud.Plugin;
 
 using ImGuiNET;
 
-using WhatDidYouSay.Services;
-
 namespace WhatDidYouSay;
 
 public class PluginUI : IDisposable
@@ -167,14 +165,14 @@ public class PluginUI : IDisposable
 			ImGuiWindowFlags.AlwaysAutoResize | ImGuiWindowFlags.NoCollapse | ImGuiWindowFlags.NoScrollbar | ImGuiWindowFlags.NoScrollWithMouse ) )
 		{
 			if( ImGui.Button( Loc.Localize( "Button: Add Zone Override", "Add/Select Current Zone" ) + "###ZoneOverrideAddButton" ) &&
-				Service.ClientState.TerritoryType > 0 )
+				DalamudAPI.ClientState.TerritoryType > 0 )
 			{
-				if( !mConfiguration.mZoneConfigOverrideDict.ContainsKey( Service.ClientState.TerritoryType ) )
+				if( !mConfiguration.mZoneConfigOverrideDict.ContainsKey( DalamudAPI.ClientState.TerritoryType ) )
 				{
-					mConfiguration.mZoneConfigOverrideDict.Add( Service.ClientState.TerritoryType, new() );
+					mConfiguration.mZoneConfigOverrideDict.Add( DalamudAPI.ClientState.TerritoryType, new() );
 				}
 
-				mZoneOverrideSelectedTerritoryType = Service.ClientState.TerritoryType;
+				mZoneOverrideSelectedTerritoryType = DalamudAPI.ClientState.TerritoryType;
 			}
 			if( ImGui.BeginChild( "###ZoneOverrideZoneListChild", new( 300, 200 ), true ) )
 			{
@@ -324,7 +322,7 @@ public class PluginUI : IDisposable
 	//	I wanted to get these from the sheets, but the relevant sheet (LogFilter) didn't seem to reliably load in time for some reason.
 	protected string GetNPCDialogueChannelName()
 	{
-		return Service.ClientState.ClientLanguage switch
+		return DalamudAPI.ClientState.ClientLanguage switch
 		{
 			Dalamud.Game.ClientLanguage.Japanese => "NPC会話",
 			Dalamud.Game.ClientLanguage.English => "NPC Dialogue",
@@ -336,7 +334,7 @@ public class PluginUI : IDisposable
 
 	protected string GetNPCDialogueAnnouncementsChannelName()
 	{
-		return Service.ClientState.ClientLanguage switch
+		return DalamudAPI.ClientState.ClientLanguage switch
 		{
 			Dalamud.Game.ClientLanguage.Japanese => "NPC会話（アナウンス）",
 			Dalamud.Game.ClientLanguage.English => "NPC Dialogue (Announcements)",
