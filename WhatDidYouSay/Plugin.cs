@@ -197,43 +197,48 @@ public sealed class Plugin : IDalamudPlugin
 		mUI.SettingsWindowVisible = true;
 	}
 
-	unsafe private void OpenChatBubbleDetour( IntPtr pThis, GameObject* pActor, IntPtr pString, byte param3, Int32 param4 )
+	unsafe private void OpenChatBubbleDetour( IntPtr pThis, GameObject* pActor, IntPtr pString, byte param3, Int32 attachmentPoint )
 	{
-		ZoneSpecificConfig zoneConfig = null;
-		mConfiguration.mZoneConfigOverrideDict?.TryGetValue( Service.ClientState.TerritoryType, out zoneConfig );
-
-		if( pString != IntPtr.Zero &&
-			!Service.ClientState.IsPvPExcludingDen &&
-			( zoneConfig == null || !zoneConfig.DisableForZone ) )
+		try
 		{
-			//	Idk if the actor can ever be null, but if it can, assume that we should print the bubble just in case.  Otherwise, only don't print if the actor is a player.
-			if( pActor == null || (byte)pActor->ObjectKind != (byte)Dalamud.Game.ClientState.Objects.Enums.ObjectKind.Player )
+			ZoneSpecificConfig zoneConfig = null;
+			mConfiguration.mZoneConfigOverrideDict?.TryGetValue( Service.ClientState.TerritoryType, out zoneConfig );
+
+			if( pString != IntPtr.Zero &&
+				!Service.ClientState.IsPvPExcludingDen &&
+				( zoneConfig == null || !zoneConfig.DisableForZone ) )
 			{
-				long currentTime_mSec = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-
-				SeString speakerName = SeString.Empty;
-				if( pActor != null && pActor->GetName() != null )
+				//	Idk if the actor can ever be null, but if it can, assume that we should print the bubble just in case.  Otherwise, only don't print if the actor is a player.
+				if( pActor == null || (byte)pActor->ObjectKind != (byte)Dalamud.Game.ClientState.Objects.Enums.ObjectKind.Player )
 				{
-					speakerName = MemoryHelper.ReadSeStringNullTerminated( (IntPtr)pActor->GetName() );
-				}
-				var bubbleInfo = new SpeechBubbleInfo( MemoryHelper.ReadSeStringNullTerminated( pString ), currentTime_mSec, speakerName );
+					long currentTime_mSec = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
 
-				lock( mSpeechBubbleInfoLockObj )
-				{
-					var extantMatch = mSpeechBubbleInfo.Find( ( x ) => { return x.IsSameMessageAs( bubbleInfo ); } );
-					if( extantMatch != null )
+					SeString speakerName = SeString.Empty;
+					if( pActor != null && pActor->GetName() != null )
 					{
-						extantMatch.TimeLastSeen_mSec = currentTime_mSec;
+						speakerName = MemoryHelper.ReadSeStringNullTerminated( (IntPtr)pActor->GetName() );
 					}
-					else
+					var bubbleInfo = new SpeechBubbleInfo( MemoryHelper.ReadSeStringNullTerminated( pString ), currentTime_mSec, speakerName );
+
+					lock( mSpeechBubbleInfoLockObj )
 					{
-						mSpeechBubbleInfo.Add( bubbleInfo );
+						var extantMatch = mSpeechBubbleInfo.Find( ( x ) => { return x.IsSameMessageAs( bubbleInfo ); } );
+						if( extantMatch != null )
+						{
+							extantMatch.TimeLastSeen_mSec = currentTime_mSec;
+						}
+						else
+						{
+							mSpeechBubbleInfo.Add( bubbleInfo );
+						}
 					}
 				}
 			}
 		}
-
-		mOpenChatBubbleHook.Original( pThis, pActor, pString, param3, param4 );
+		finally
+		{
+			mOpenChatBubbleHook.Original( pThis, pActor, pString, param3, attachmentPoint );
+		}
 	}
 
 	private void OnChatMessage( XivChatType type, Int32 timestamp, ref SeString sender, ref SeString message, ref bool isHandled )
@@ -478,7 +483,7 @@ public sealed class Plugin : IDalamudPlugin
 
 	//	Open bubble param3 seems to be related to object validity maybe, and param4 seems like some kind of offset, possibly
 	//	based on object rotation, or may be a bone index for attachment.
-	private unsafe delegate void OpenChatBubbleDelegate( IntPtr pThis, GameObject* pActor, IntPtr pString, byte param3, Int32 param4 );
+	private unsafe delegate void OpenChatBubbleDelegate( IntPtr pThis, GameObject* pActor, IntPtr pString, byte param3, Int32 attachmentPoint );
 	private readonly Hook<OpenChatBubbleDelegate> mOpenChatBubbleHook;
 
 	private readonly Object mSpeechBubbleInfoLockObj = new();
