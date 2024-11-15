@@ -10,6 +10,7 @@ To Do:
 		-When would we reset the numbering?
 		-What about mamool-ja and other non-playable races?  How are they even noted?
 		-Will probably want to start tracking the speakers ENpc ID if we do this.
+	- Allow adding color payloads to the speaker/text in the chat message that people can configure.
 
 Notes:
 	-Testing of duplicate chat entry filtering can be accomplished easily in Haukke (Hard) with the first few NPCs up the stairs and down the hall.
