@@ -17,7 +17,7 @@ using Dalamud.Plugin.Services;
 
 using FFXIVClientStructs.FFXIV.Client.Game.Object;
 
-using Lumina.Excel.GeneratedSheets;
+using Lumina.Excel.Sheets;
 
 namespace WhatDidYouSay;
 
@@ -168,19 +168,19 @@ public sealed class Plugin : IDalamudPlugin
 		var contentFinderConditionSheet = DalamudAPI.DataManager.GetExcelSheet<ContentFinderCondition>();
 
 		var territoryTypeForZone = territoryTypeSheet.GetRow( territoryType );
-		var contentFinderConditionName = territoryTypeForZone?.ContentFinderCondition?.Value?.Name;
+		var contentFinderConditionName = territoryTypeForZone.ContentFinderCondition.Value.Name;
 
-		if( contentFinderConditionName?.ToString().Trim().Length > 0 )
+		if( contentFinderConditionName.ToString().Trim().Length > 0 )
 		{
 			return contentFinderConditionName.ToString();
 		}
-		else if( territoryTypeForZone?.PlaceName.Value.Name.ToString().Trim().Length > 0 )
+		else if( territoryTypeForZone.PlaceName.Value.Name.ToString().Trim().Length > 0 )
 		{
 			return territoryTypeForZone.PlaceName.Value.Name.ToString();
 		}
 		else
 		{
-			return $"{territoryType}";
+			return $"Territory {territoryType}";
 		}
 	}
 
