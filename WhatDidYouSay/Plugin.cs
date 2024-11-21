@@ -165,12 +165,16 @@ public sealed class Plugin : IDalamudPlugin
 	internal string GetNiceNameForZone( UInt32 territoryType )
 	{
 		var territoryTypeSheet = DalamudAPI.DataManager.GetExcelSheet<TerritoryType>();
-		var contentFinderConditionSheet = DalamudAPI.DataManager.GetExcelSheet<ContentFinderCondition>();
+
+		if( !territoryTypeSheet.HasRow( territoryType ) )
+		{
+			return $"Invalid Territory ({territoryType})";
+		}
 
 		var territoryTypeForZone = territoryTypeSheet.GetRow( territoryType );
-		var contentFinderConditionName = territoryTypeForZone.ContentFinderCondition.Value.Name;
+		var contentFinderConditionName = territoryTypeForZone.ContentFinderCondition.IsValid ? territoryTypeForZone.ContentFinderCondition.Value.Name.ToString().Trim() : "";
 
-		if( contentFinderConditionName.ToString().Trim().Length > 0 )
+		if( contentFinderConditionName.Length > 0 )
 		{
 			return contentFinderConditionName.ToString();
 		}
