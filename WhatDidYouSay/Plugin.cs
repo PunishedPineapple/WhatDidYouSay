@@ -14,6 +14,7 @@ using Dalamud.Hooking;
 using Dalamud.Memory;
 using Dalamud.Plugin;
 using Dalamud.Plugin.Services;
+using Dalamud.Utility;
 
 using FFXIVClientStructs.FFXIV.Client.Game.Object;
 
@@ -217,7 +218,7 @@ public sealed class Plugin : IDalamudPlugin
 					SeString speakerName = SeString.Empty;
 					if( pActor != null && pActor->GetName() != null )
 					{
-						speakerName = MemoryHelper.ReadSeStringNullTerminated( (IntPtr)pActor->GetName() );
+						speakerName = pActor->GetName().AsDalamudSeString();
 					}
 					var bubbleInfo = new SpeechBubbleInfo( MemoryHelper.ReadSeStringNullTerminated( pString ), currentTime_mSec, speakerName );
 
