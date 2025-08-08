@@ -3,7 +3,7 @@
 
 To Do:
 	-Translations
-	-Make icon scale better.
+	-Make plugin icon scale better.
 	-Should we track the speaker object ID as well, and have an alternate comparison options?
 		-Gut feeling is no, more complexity that's unnecessary unless we run into an actual bug.
 	-See if we can make up names for unnamed NPCs, like "Lalafell 1", etc.
@@ -11,6 +11,8 @@ To Do:
 		-What about mamool-ja and other non-playable races?  How are they even noted?
 		-Will probably want to start tracking the speakers ENpc ID if we do this.
 	- Allow adding color payloads to the speaker/text in the chat message that people can configure.
+	- Track down what is opening bubbles and see if we can get it put into client structs and get rid of our hook.
+		- I vaguely remember seeing something in probably UI3DModule.  Not sure if it got removed, changed, or I am misremembering.
 
 Notes:
 	-Testing of duplicate chat entry filtering can be accomplished easily in Haukke (Hard) with the first few NPCs up the stairs and down the hall.

@@ -7,7 +7,7 @@ using CheapLoc;
 using Dalamud.Game.Text;
 using Dalamud.Plugin;
 
-using ImGuiNET;
+using Dalamud.Bindings.ImGui;
 
 namespace WhatDidYouSay;
 

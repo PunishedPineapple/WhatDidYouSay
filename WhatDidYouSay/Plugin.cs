@@ -210,7 +210,10 @@ public sealed class Plugin : IDalamudPlugin
 				!DalamudAPI.ClientState.IsPvPExcludingDen &&
 				( zoneConfig == null || !zoneConfig.DisableForZone ) )
 			{
-				//	Idk if the actor can ever be null, but if it can, assume that we should print the bubble just in case.  Otherwise, only don't print if the actor is a player.
+				//	Idk if the actor can ever be null, but if it can, assume that we should print the bubble just in
+				//	case.  Otherwise, only don't print if the actor is a player.  Technically, we do not have to worry
+				//	about players anymore, since those bubbles now use a different system, but it doesn't hurt to keep
+				//	checking in case some other plugin does something with them in the future.
 				if( pActor == null || (byte)pActor->ObjectKind != (byte)Dalamud.Game.ClientState.Objects.Enums.ObjectKind.Player )
 				{
 					long currentTime_mSec = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
