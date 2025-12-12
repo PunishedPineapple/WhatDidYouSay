@@ -1,25 +1,43 @@
-﻿namespace WhatDidYouSay;
+﻿using System;
+
+using Lumina.Excel.Sheets;
+
+namespace WhatDidYouSay;
 
 public class ZoneSpecificConfig
 {
-	public bool mDisableForZone = false;
-	public bool DisableForZone
-	{
-		get { return mDisableForZone; }
-		set { mDisableForZone = value; }
-	}
+	public bool DisableForZone = false;
 
-	public bool mRepeatsAllowed = true;
-	public bool RepeatsAllowed
-	{
-		get { return mRepeatsAllowed; }
-		set { mRepeatsAllowed = value; }
-	}
+	public bool RepeatsAllowed = true;
 
-	public int mTimeBeforeRepeatsAllowed_Sec = 10;
-	public int TimeBeforeRepeatsAllowed_Sec
+	public int TimeBeforeRepeatsAllowed_Sec = 10;
+	internal TimeSpan TimeBeforeRepeatsAllowed => TimeSpan.FromSeconds( TimeBeforeRepeatsAllowed_Sec );
+
+	public static string GetNiceNameForZone( UInt32 territoryType )
 	{
-		get { return mTimeBeforeRepeatsAllowed_Sec; }
-		set { mTimeBeforeRepeatsAllowed_Sec = value; }
+		var territoryTypeSheet = DalamudAPI.DataManager.GetExcelSheet<TerritoryType>();
+
+		if( !territoryTypeSheet.HasRow( territoryType ) )
+		{
+			return $"Invalid Territory ({territoryType})";
+		}
+
+		var territoryTypeForZone = territoryTypeSheet.GetRow( territoryType );
+		var contentFinderConditionName = territoryTypeForZone.ContentFinderCondition.IsValid ? territoryTypeForZone.ContentFinderCondition.Value.Name.ExtractText()?.Trim() : string.Empty;
+
+		if( !string.IsNullOrWhiteSpace( contentFinderConditionName ) )
+		{
+			return contentFinderConditionName;
+		}
+		else if( territoryTypeForZone.PlaceName.IsValid &&
+				 territoryTypeForZone.PlaceName.Value.Name.ExtractText()?.Trim() is string territoryTypeName &&
+				 territoryTypeName.Length > 0 )
+		{
+			return territoryTypeName;
+		}
+		else
+		{
+			return $"Territory {territoryType}";
+		}
 	}
 }

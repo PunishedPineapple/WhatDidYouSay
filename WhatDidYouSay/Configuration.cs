@@ -7,109 +7,67 @@ using Dalamud.Plugin;
 
 namespace WhatDidYouSay;
 
-[Serializable]
-public class Configuration : IPluginConfiguration
-{
-	public Configuration()
-	{
-	}
+//	IMPORTANT: This class (and its serializable members) must be public in order to be properly serialized and deserialized.
 
-	//  Our own configuration options and data.
+[Serializable]
+public sealed class Configuration : IPluginConfiguration
+{
+	#region Interface
+
+	public void Initialize( IDalamudPluginInterface pluginInterface ) => mPluginInterface = pluginInterface;
+
+	public void Save() => mPluginInterface.SavePluginConfig( this );
+
+	public int Version { get; set; } = 0;
+
+	[NonSerialized]
+	private IDalamudPluginInterface mPluginInterface;
+
+	#endregion
+
+	#region Options
 
 	//	Need a real backing field on the properties for use with ImGui.
-	public bool mSuppressCommandLineResponses = false;
-	public bool SuppressCommandLineResponses
-	{
-		get { return mSuppressCommandLineResponses; }
-		set { mSuppressCommandLineResponses = value; }
-	}
-
-	public bool mKeepLineBreaks = false;
-	public bool KeepLineBreaks
-	{
-		get { return mKeepLineBreaks; }
-		set { mKeepLineBreaks = value; }
-	}
-
-	public bool mRepeatsAllowed = true;
-	public bool RepeatsAllowed
-	{
-		get { return mRepeatsAllowed; }
-		set { mRepeatsAllowed = value; }
-	}
-
-	public bool mRepeatsAllowedInInstance = true;
-	public bool RepeatsAllowedInInstance
-	{
-		get { return mRepeatsAllowedInInstance; }
-		set { mRepeatsAllowedInInstance = value; }
-	}
-
-	public bool mIgnoreIfAlreadyInChat_NPCDialogue = false;
-	public bool IgnoreIfAlreadyInChat_NPCDialogue
-	{
-		get { return mIgnoreIfAlreadyInChat_NPCDialogue; }
-		set { mIgnoreIfAlreadyInChat_NPCDialogue = value; }
-	}
-
-	public bool mIgnoreIfAlreadyInChat_NPCDialogueAnnouncements = true;
-	public bool IgnoreIfAlreadyInChat_NPCDialogueAnnouncements
-	{
-		get { return mIgnoreIfAlreadyInChat_NPCDialogueAnnouncements; }
-		set { mIgnoreIfAlreadyInChat_NPCDialogueAnnouncements = value; }
-	}
-
-	public int mTimeBeforeRepeatsAllowed_Sec = 30;
-	public int TimeBeforeRepeatsAllowed_Sec
-	{
-		get { return mTimeBeforeRepeatsAllowed_Sec; }
-		set { mTimeBeforeRepeatsAllowed_Sec = value; }
-	}
-
-	public int mTimeBeforeRepeatsAllowedInInstance_Sec = 5;
-	public int TimeBeforeRepeatsAllowedInInstance_Sec
-	{
-		get { return mTimeBeforeRepeatsAllowedInInstance_Sec; }
-		set { mTimeBeforeRepeatsAllowedInInstance_Sec = value; }
-	}
-
-	public int mMinTimeBetweenChatPrints_mSec = 500;
-	public int MinTimeBetweenChatPrints_mSec
-	{
-		get { return mMinTimeBetweenChatPrints_mSec; }
-		set { mMinTimeBetweenChatPrints_mSec= value; }
-	}
-
-	public string mDefaultSenderName = "NPC";
-	public string DefaultSenderName
-	{
-		get { return mDefaultSenderName; }
-		set { mDefaultSenderName = value; }
-	}
+	public bool SuppressCommandLineResponses = false;
+	public bool KeepLineBreaks = false;
+	public bool RepeatsAllowed = true;
+	public bool RepeatsAllowedInInstance = true;
+	public bool IgnoreIfAlreadyInChat_NPCDialogue = false;
+	public bool IgnoreIfAlreadyInChat_NPCDialogueAnnouncements = true;
+	public bool RepeatDetectionIgnoresSenderID = true;
+	public bool RepeatDetectionIgnoresSenderID_InInstance = true;
+	public int TimeBeforeRepeatsAllowed_Sec = 30;
+	public int TimeBeforeRepeatsAllowedInInstance_Sec = 5;
+	public int MinTimeBetweenChatPrints_mSec = 500;
+	public string DefaultSenderName = "NPC";
 
 	//	Backing field as an int to work with ImGui.
-	public int mChatChannelToUse = (int)XivChatType.NPCDialogueAnnouncements;
+	internal int mChatChannelToUse = (int)XivChatType.NPCDialogueAnnouncements;
 	public XivChatType ChatChannelToUse
 	{
-		get { return (XivChatType)mChatChannelToUse; }
-		set { mChatChannelToUse = (int)value; }
+		get => (XivChatType)mChatChannelToUse;
+		set => mChatChannelToUse = (int)value;
 	}
+
+	public ushort NpcMessageTextColor = 0;
+	public ushort NpcMessageGlowColor = 0;
+
+	public ushort SenderTextColor_Unknown = 0;
+	public ushort SenderGlowColor_Unknown = 0;
+
+	public bool IgnorePlayerCharacterBubbles = false;
+
+	public bool DEBUG_NotifyOnUnknownParam3Bubble = false;
 
 	public SortedDictionary<UInt32, ZoneSpecificConfig> mZoneConfigOverrideDict = new();
 
-	//  Plugin framework and related convenience functions below.
-	public void Initialize( IDalamudPluginInterface pluginInterface )
-	{
-		mPluginInterface = pluginInterface;
-	}
+	#endregion
 
-	public void Save()
-	{
-		mPluginInterface.SavePluginConfig( this );
-	}
+	#region Helpers
 
-	[NonSerialized]
-	protected IDalamudPluginInterface mPluginInterface;
+	internal TimeSpan TimeBeforeRepeatsAllowed => TimeSpan.FromSeconds( TimeBeforeRepeatsAllowed_Sec );
+	internal TimeSpan TimeBeforeRepeatsAllowed_InInstance => TimeSpan.FromSeconds( TimeBeforeRepeatsAllowedInInstance_Sec );
+	internal TimeSpan MinTimeBetweenChatPrints => TimeSpan.FromMilliseconds( MinTimeBetweenChatPrints_mSec );
 
-	public int Version { get; set; } = 0;
+	#endregion
 }

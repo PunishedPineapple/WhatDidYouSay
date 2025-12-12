@@ -3,8 +3,9 @@
 	<!-- Compiler Settings -->
 	<PropertyGroup>
 		<TargetFramework>net9.0-windows</TargetFramework>
+		<LangVersion>preview</LangVersion>
 		<Platforms>x64</Platforms>
-		<Nullable>disable</Nullable>
+		<Nullable>enable</Nullable>
 		<AllowUnsafeBlocks>true</AllowUnsafeBlocks>
 		<DebugSymbols>true</DebugSymbols>
 		<DebugType>full</DebugType>
@@ -13,7 +14,7 @@
 
 	<!-- Project Information -->
 	<PropertyGroup>
-		<Version>1.0.2.7</Version>
+		<Version>2.0.0.0</Version>
 		<Authors>PunishedPineapple</Authors>
 		<Product />
 		<Copyright>Copyright © PunishedPineapple 2022-2025</Copyright>

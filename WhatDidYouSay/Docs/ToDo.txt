@@ -1,7 +1,16 @@
 ﻿Bugs:
 	-Remove line breaks isn't always working.  Might need to add back in non-SeString line break handling as well.
 
+v2:
+	-Setting to control minimum balloon time.
+	-Debug option to print NPC name with their row number.
+		-Also optionally only for ones without names (to help with any manual naming that people may want to do).
+		-And for ones without a race/clan only to help when prioritizing npcs that cannot get a procedural name.
+	-Think about how we really want to not print for already printing balloons.  May want to hook the NPCYell stuff and flag that the next balloon opened within delay period should be ignored.
+	-Also check character balloon structs in the openballoon hook to get better information.
+
 To Do:
+	-Switch to Dalamud window system.
 	-Translations
 	-Make plugin icon scale better.
 	-Should we track the speaker object ID as well, and have an alternate comparison options?
@@ -10,10 +19,11 @@ To Do:
 		-When would we reset the numbering?
 		-What about mamool-ja and other non-playable races?  How are they even noted?
 		-Will probably want to start tracking the speakers ENpc ID if we do this.
-	- Allow adding color payloads to the speaker/text in the chat message that people can configure.
-	- Track down what is opening bubbles and see if we can get it put into client structs and get rid of our hook.
-		- I vaguely remember seeing something in probably UI3DModule.  Not sure if it got removed, changed, or I am misremembering.
+	-Allow adding color payloads to the speaker/text in the chat message that people can configure.
+
+	
 
 Notes:
 	-Testing of duplicate chat entry filtering can be accomplished easily in Haukke (Hard) with the first few NPCs up the stairs and down the hall.
 		-They talk in both speech bubbles, and in the NPC Dialogue (Announcements) chat channel.
+	-Strayborough has balloons that have param3 true.  Only place that I have seen it.

@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Threading;
 
 using CheapLoc;
 
@@ -16,15 +17,15 @@ using Dalamud.Plugin;
 using Dalamud.Plugin.Services;
 using Dalamud.Utility;
 
+using FFXIVClientStructs.FFXIV.Client.Game.Character;
 using FFXIVClientStructs.FFXIV.Client.Game.Object;
-
-using Lumina.Excel.Sheets;
+using FFXIVClientStructs.FFXIV.Client.System.String;
+using FFXIVClientStructs.FFXIV.Client.UI.Agent;
 
 namespace WhatDidYouSay;
 
 public sealed class Plugin : IDalamudPlugin
 {
-	//	Initialization
 	public Plugin( IDalamudPluginInterface pluginInterface )
 	{
 		//	API Access
@@ -34,7 +35,20 @@ public sealed class Plugin : IDalamudPlugin
 		//	Configuration
 		mConfiguration = mPluginInterface.GetPluginConfig() as Configuration ?? new Configuration();
 		mConfiguration.Initialize( mPluginInterface );
-		if( !IsValidSenderName( mConfiguration.DefaultSenderName ) ) mConfiguration.DefaultSenderName = "NPC";
+		if( !IsValidCustomSenderName( mConfiguration.DefaultSenderName ) ) mConfiguration.DefaultSenderName = "NPC";
+
+		//	Other initialization.
+		if( Instance is null )
+		{
+			Instance = this;
+		}
+		else
+		{
+			var errorStr =	"\"Plugin.Instance\" was not null!  This means that either another instance of the plugin is already running " +
+							"in this context, or the last time the plugin was disabled, it was not properly disposed.";
+			DalamudAPI.PluginLog.Error( errorStr );
+			throw new( errorStr );
+		}
 
 		//	Localization and Command Initialization
 		OnLanguageChanged( mPluginInterface.UiLanguage );
@@ -42,12 +56,13 @@ public sealed class Plugin : IDalamudPlugin
 		//	Hook
 		unsafe
 		{
-			IntPtr fpOpenChatBubble = DalamudAPI.SigScanner.ScanText( "E8 ?? ?? ?? FF 48 8B 7C 24 48 C7 46 0C 01 00 00 00" );
-			if( fpOpenChatBubble != IntPtr.Zero )
+			IntPtr fpOpenBalloon = DalamudAPI.SigScanner.ScanText( "E8 ?? ?? ?? FF 48 8B 7C 24 48 C7 46 0C 01 00 00 00" );
+			if( fpOpenBalloon != IntPtr.Zero )
 			{
-				DalamudAPI.PluginLog.Information( $"OpenChatBubble function signature found at 0x{fpOpenChatBubble:X}." );
-				mOpenChatBubbleHook = DalamudAPI.GameInteropProvider.HookFromAddress<OpenChatBubbleDelegate>( fpOpenChatBubble, OpenChatBubbleDetour );
-				mOpenChatBubbleHook?.Enable();
+				var addressInfo = Util.DescribeAddress( fpOpenBalloon );
+				DalamudAPI.PluginLog.Information( $"OpenChatBubble function found at {addressInfo}" );	//***** TODO: Verify and update other plugins to do it like this too.
+				mOpenBalloonHook = DalamudAPI.GameInteropProvider.HookFromAddress<OpenBalloonDelegate>( fpOpenBalloon, OpenBalloonDetour );
+				mOpenBalloonHook?.Enable();
 			}
 			else
 			{
@@ -58,30 +73,35 @@ public sealed class Plugin : IDalamudPlugin
 		//	UI Initialization
 		mUI = new PluginUI( this, mConfiguration, pluginInterface );
 		mPluginInterface.UiBuilder.Draw += DrawUI;
-		mPluginInterface.UiBuilder.OpenConfigUi += DrawConfigUI;
+		mPluginInterface.UiBuilder.OpenConfigUi += ToggleConfigUI;
 
 		//	Event Subscription
 		mPluginInterface.LanguageChanged += OnLanguageChanged;
+		DalamudAPI.ClientState.Login += OnLogin;
+		DalamudAPI.ClientState.Logout += OnLogout;
 		DalamudAPI.ClientState.TerritoryChanged += OnTerritoryChanged;
 		DalamudAPI.Framework.Update += OnGameFrameworkUpdate;
 		DalamudAPI.ChatGui.ChatMessage += OnChatMessage;
 	}
 
-	//	Cleanup
 	public void Dispose()
 	{
-		mOpenChatBubbleHook?.Disable();
-		mOpenChatBubbleHook?.Dispose();
+		mOpenBalloonHook?.Disable();
+		mOpenBalloonHook?.Dispose();
 
 		DalamudAPI.ChatGui.ChatMessage -= OnChatMessage;
 		DalamudAPI.Framework.Update -= OnGameFrameworkUpdate;
 		DalamudAPI.ClientState.TerritoryChanged -= OnTerritoryChanged;
+		DalamudAPI.ClientState.Logout -= OnLogout;
+		DalamudAPI.ClientState.Login -= OnLogin;
 		mPluginInterface.LanguageChanged -= OnLanguageChanged;
 		mPluginInterface.UiBuilder.Draw -= DrawUI;
-		mPluginInterface.UiBuilder.OpenConfigUi -= DrawConfigUI;
+		mPluginInterface.UiBuilder.OpenConfigUi -= ToggleConfigUI;
 		DalamudAPI.CommandManager.RemoveHandler( TextCommandName );
 
 		mUI?.Dispose();
+
+		Instance = null;
 	}
 
 	private void OnLanguageChanged( string langCode )
@@ -92,7 +112,17 @@ public sealed class Plugin : IDalamudPlugin
 
 		if( allowedLang.Contains( langCode ) )
 		{
-			Loc.Setup( File.ReadAllText( Path.Join( Path.Join( mPluginInterface.AssemblyLocation.DirectoryName, "Resources\\Localization\\" ), $"loc_{langCode}.json" ) ) );
+			try
+			{
+				var locPath = Path.Combine( mPluginInterface.AssemblyLocation.DirectoryName, "Resources\\Localization\\", $"loc_{langCode}.json" );
+				var locData = File.ReadAllText( locPath );
+				Loc.Setup( locData );
+			}
+			catch( Exception e )
+			{
+				DalamudAPI.PluginLog.Error( $"Error in \"{nameof( OnLanguageChanged )}\".  Falling back to English.\r\n{e}" );
+				Loc.SetupWithFallbacks();
+			}
 		}
 		else
 		{
@@ -106,15 +136,16 @@ public sealed class Plugin : IDalamudPlugin
 		}
 		DalamudAPI.CommandManager.AddHandler( TextCommandName, new CommandInfo( ProcessTextCommand )
 		{
-			HelpMessage = String.Format( Loc.Localize( "Plugin Text Command Description", "Opens the settings window.  Using the subcommands \"{0}\" or \"{1}\" will disable or reenable, respectively, the plugin for the current zone." ), SubcommandName_Ban, SubcommandName_Unban )
+			HelpMessage = string.Format( Loc.Localize( "Plugin Text Command Description", "Opens the settings window.  Using the subcommands \"{0}\" or \"{1}\" will disable or reenable, respectively, the plugin for the current zone." ), SubcommandName_Ban, SubcommandName_Unban )
 		} );
 	}
 
+	//***** TODO: Update to use newer command processing.
 	private void ProcessTextCommand( string command, string args )
 	{
 		if( args.ToLower() == SubcommandName_Debug.ToLower() )
 		{
-			mUI.DebugWindowVisible = !mUI.DebugWindowVisible;
+			mUI.Window_Debug.Toggle();
 		}
 		else if( args.ToLower() == SubcommandName_Ban.ToLower() )
 		{
@@ -128,12 +159,12 @@ public sealed class Plugin : IDalamudPlugin
 				if( mConfiguration.mZoneConfigOverrideDict.TryGetValue( DalamudAPI.ClientState.TerritoryType, out var zoneConfig ) )
 				{
 					zoneConfig.DisableForZone = true;
-					DalamudAPI.ChatGui.Print( String.Format( Loc.Localize( "Subcommand Response: Current Zone Banned", "NPC speech bubbles will now be ignored in {0}." ), GetNiceNameForZone( DalamudAPI.ClientState.TerritoryType ) ) );
+					DalamudAPI.ChatGui.Print( string.Format( Loc.Localize( "Subcommand Response: Current Zone Banned", "NPC speech bubbles will now be ignored in {0}." ), ZoneSpecificConfig.GetNiceNameForZone( DalamudAPI.ClientState.TerritoryType ) ) );
 					mConfiguration.Save();
 				}
 				else
 				{
-					DalamudAPI.ChatGui.Print( String.Format( Loc.Localize( "Subcommand Response: Current Zone Banned (Error)", "Error: Unable to ban zone {0}." ), GetNiceNameForZone( DalamudAPI.ClientState.TerritoryType ) ) );
+					DalamudAPI.ChatGui.Print( string.Format( Loc.Localize( "Subcommand Response: Current Zone Banned (Error)", "Error: Unable to ban zone {0}." ), ZoneSpecificConfig.GetNiceNameForZone( DalamudAPI.ClientState.TerritoryType ) ) );
 				}
 			}
 		}
@@ -143,133 +174,98 @@ public sealed class Plugin : IDalamudPlugin
 			{
 				if( mConfiguration.mZoneConfigOverrideDict.Remove( DalamudAPI.ClientState.TerritoryType ) )
 				{
-					DalamudAPI.ChatGui.Print( String.Format( Loc.Localize( "Subcommand Response: Current Zone Unbanned", "NPC speech will now use your global settings in {0}." ), GetNiceNameForZone( DalamudAPI.ClientState.TerritoryType ) ) );
+					DalamudAPI.ChatGui.Print( string.Format( Loc.Localize( "Subcommand Response: Current Zone Unbanned", "NPC speech will now use your global settings in {0}." ), ZoneSpecificConfig.GetNiceNameForZone( DalamudAPI.ClientState.TerritoryType ) ) );
 					mConfiguration.Save();
 				}
 				else
 				{
-					DalamudAPI.ChatGui.Print( String.Format( Loc.Localize( "Subcommand Response: Current Zone Unbanned (Error)", "Error: Unable to unban zone {0}." ), GetNiceNameForZone( DalamudAPI.ClientState.TerritoryType ) ) );
+					DalamudAPI.ChatGui.Print( string.Format( Loc.Localize( "Subcommand Response: Current Zone Unbanned (Error)", "Error: Unable to unban zone {0}." ), ZoneSpecificConfig.GetNiceNameForZone( DalamudAPI.ClientState.TerritoryType ) ) );
 				}
 			}
 			else
 			{
 				//	Technically inaccurate, but effectively true from the user's perspective.
-				DalamudAPI.ChatGui.Print( String.Format( Loc.Localize( "Subcommand Response: Current Zone Unbanned", "NPC speech will now use your global settings in {0}." ), GetNiceNameForZone( DalamudAPI.ClientState.TerritoryType ) ) );
+				DalamudAPI.ChatGui.Print( string.Format( Loc.Localize( "Subcommand Response: Current Zone Unbanned", "NPC speech will now use your global settings in {0}." ), ZoneSpecificConfig.GetNiceNameForZone( DalamudAPI.ClientState.TerritoryType ) ) );
 			}
 		}
 		else
 		{
-			mUI.SettingsWindowVisible = !mUI.SettingsWindowVisible;
+			ToggleConfigUI();
 		}
 	}
 
-	internal string GetNiceNameForZone( UInt32 territoryType )
-	{
-		var territoryTypeSheet = DalamudAPI.DataManager.GetExcelSheet<TerritoryType>();
+	private void DrawUI() => mUI.Draw();
 
-		if( !territoryTypeSheet.HasRow( territoryType ) )
-		{
-			return $"Invalid Territory ({territoryType})";
-		}
+	private void ToggleConfigUI() => mUI.Window_Settings.Toggle();
 
-		var territoryTypeForZone = territoryTypeSheet.GetRow( territoryType );
-		var contentFinderConditionName = territoryTypeForZone.ContentFinderCondition.IsValid ? territoryTypeForZone.ContentFinderCondition.Value.Name.ToString().Trim() : "";
-
-		if( contentFinderConditionName.Length > 0 )
-		{
-			return contentFinderConditionName.ToString();
-		}
-		else if( territoryTypeForZone.PlaceName.Value.Name.ToString().Trim().Length > 0 )
-		{
-			return territoryTypeForZone.PlaceName.Value.Name.ToString();
-		}
-		else
-		{
-			return $"Territory {territoryType}";
-		}
-	}
-
-	private void DrawUI()
-	{
-		mUI.Draw();
-	}
-
-	private void DrawConfigUI()
-	{
-		mUI.SettingsWindowVisible = true;
-	}
-
-	unsafe private void OpenChatBubbleDetour( IntPtr pThis, GameObject* pActor, IntPtr pString, byte param3, Int32 attachmentPoint )
+	private unsafe void OpenBalloonDetour( AgentScreenLog* pThis, GameObject* pActor, byte* pString, byte param3, Int32 attachmentPoint )
 	{
 		try
 		{
-			ZoneSpecificConfig zoneConfig = null;
+			//	First handle any logging that we want to do.
+			LogBubbleInfo( pThis, pActor, pString, param3, attachmentPoint );
+
+			ZoneSpecificConfig? zoneConfig = null;
 			mConfiguration.mZoneConfigOverrideDict?.TryGetValue( DalamudAPI.ClientState.TerritoryType, out zoneConfig );
 
-			if( pString != IntPtr.Zero &&
+			//	The new player chat bubbles use a separate system, so we should theoretically not
+			//	have to worry about them anymore, but have an option to keep checking in case some
+			//	other plugin does something with them in the future.
+			if( pActor is not null &&
+				pString is not null &&
 				!DalamudAPI.ClientState.IsPvPExcludingDen &&
-				( zoneConfig == null || !zoneConfig.DisableForZone ) )
+				zoneConfig?.DisableForZone != true &&
+				( pActor->ObjectKind != ObjectKind.Pc || !mConfiguration.IgnorePlayerCharacterBubbles ) )
 			{
-				//	Idk if the actor can ever be null, but if it can, assume that we should print the bubble just in
-				//	case.  Otherwise, only don't print if the actor is a player.  Technically, we do not have to worry
-				//	about players anymore, since those bubbles now use a different system, but it doesn't hurt to keep
-				//	checking in case some other plugin does something with them in the future.
-				if( pActor == null || (byte)pActor->ObjectKind != (byte)Dalamud.Game.ClientState.Objects.Enums.ObjectKind.Player )
+				var currentTime = DateTimeOffset.UtcNow;
+				var bubbleInfo = new NpcMessageInfo()
 				{
-					long currentTime_mSec = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+					SpeakerEntityID = pActor->EntityId,
+					SpeakerKind = pActor->ObjectKind,
+					SpeakerBaseID = pActor->ObjectKind is ObjectKind.BattleNpc or ObjectKind.EventNpc ? ((Character*)pActor)->BaseId : 0,
+					SpeakerName = SeString.Parse( pActor->Name ) ?? SeString.Empty,
+					Message = MemoryHelper.ReadSeStringNullTerminated( (nint)pString )
+				};
 
-					SeString speakerName = SeString.Empty;
-					if( pActor != null && pActor->GetName() != null )
-					{
-						speakerName = pActor->GetName().AsDalamudSeString();
-					}
-					var bubbleInfo = new SpeechBubbleInfo( MemoryHelper.ReadSeStringNullTerminated( pString ), currentTime_mSec, speakerName );
+				bool ignoreSenderIDForEquality = DalamudAPI.Condition[ConditionFlag.BoundByDuty] ?
+				mConfiguration.RepeatDetectionIgnoresSenderID_InInstance :
+				mConfiguration.RepeatDetectionIgnoresSenderID;
 
-					lock( mSpeechBubbleInfoLockObj )
-					{
-						var extantMatch = mSpeechBubbleInfo.Find( ( x ) => { return x.IsSameMessageAs( bubbleInfo ); } );
-						if( extantMatch != null )
-						{
-							extantMatch.TimeLastSeen_mSec = currentTime_mSec;
-						}
-						else
-						{
-							mSpeechBubbleInfo.Add( bubbleInfo );
-						}
-					}
+				lock( mSpeechBubbleInfoLockObj )
+				{
+					var extantMatch = mSpeechBubbleInfo.Find( x => x.Equals( bubbleInfo, ignoreSenderIDForEquality ) );
+					if( extantMatch is not null ) extantMatch.FlagMessageSeenAgain();
+					else mSpeechBubbleInfo.Add( bubbleInfo );
 				}
 			}
 		}
+		catch( Exception e )
+		{
+			DalamudAPI.PluginLog.Error( $"Exception in \"{nameof( OpenBalloonDetour )}\":\r\n{e}" );
+		}
 		finally
 		{
-			mOpenChatBubbleHook.Original( pThis, pActor, pString, param3, attachmentPoint );
+			mOpenBalloonHook?.Original( pThis, pActor, pString, param3, attachmentPoint );
 		}
 	}
 
 	private void OnChatMessage( XivChatType type, Int32 timestamp, ref SeString sender, ref SeString message, ref bool isHandled )
 	{
+		//***** TODO: Hook the function that determines whether to log the line and just skip if we're in that with a line that will print.
+
 		//	We want to keep a short record of NPC dialogue messages that the game sends itself, because
 		//	in some cases, these can duplicate speech bubbles.  We'll use these to avoid duplicate log lines.
-		if( type == XivChatType.NPCDialogue && mConfiguration.IgnoreIfAlreadyInChat_NPCDialogue )
+		if( type.Channel == XivChatType.NPCDialogue && mConfiguration.IgnoreIfAlreadyInChat_NPCDialogue ||
+			type.Channel == XivChatType.NPCDialogueAnnouncements && mConfiguration.IgnoreIfAlreadyInChat_NPCDialogueAnnouncements )
 		{
 			lock( mGameChatInfoLockObj )
 			{
-				mGameChatInfo.Add( new( message, DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), sender ) );
+				mGameChatInfo.Add( new( 0xE000000, ObjectKind.None, 0, sender, message ) );
 			}
-			return;
-		}
-
-		if( type == XivChatType.NPCDialogueAnnouncements && mConfiguration.IgnoreIfAlreadyInChat_NPCDialogueAnnouncements )
-		{
-			lock( mGameChatInfoLockObj )
-			{
-				mGameChatInfo.Add( new( message, DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), sender ) );
-			}
-			return;
 		}
 	}
 
-	unsafe private void OnGameFrameworkUpdate( IFramework framework )
+	private unsafe void OnGameFrameworkUpdate( IFramework framework )
 	{
 		if( !DalamudAPI.ClientState.IsLoggedIn ) return;
 
@@ -278,15 +274,15 @@ public sealed class Plugin : IDalamudPlugin
 			//	Clean up any expired records.
 			for( int i = mSpeechBubbleInfo.Count - 1; i >= 0; --i )
 			{
-				ZoneSpecificConfig zoneConfig = null;
+				ZoneSpecificConfig? zoneConfig = null;
 				mConfiguration.mZoneConfigOverrideDict?.TryGetValue( DalamudAPI.ClientState.TerritoryType, out zoneConfig );
-				long timeSinceLastSeen_mSec = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - mSpeechBubbleInfo[i].TimeLastSeen_mSec;
-				bool delete_OutOfInstance = mConfiguration.RepeatsAllowed && timeSinceLastSeen_mSec > Math.Max( 1, mConfiguration.TimeBeforeRepeatsAllowed_Sec ) * 1000;
-				bool delete_InInstance = mConfiguration.RepeatsAllowedInInstance && timeSinceLastSeen_mSec > Math.Max( 1, mConfiguration.TimeBeforeRepeatsAllowedInInstance_Sec ) * 1000;
+				var timeSinceLastSeen = DateTimeOffset.UtcNow - mSpeechBubbleInfo[i].TimeLastSeen;
+				bool delete_OutOfInstance = mConfiguration.RepeatsAllowed && timeSinceLastSeen > mConfiguration.TimeBeforeRepeatsAllowed;
+				bool delete_InInstance = mConfiguration.RepeatsAllowedInInstance && timeSinceLastSeen > mConfiguration.TimeBeforeRepeatsAllowed_InInstance;
 				
-				if( zoneConfig != null )
+				if( zoneConfig is not null )
 				{
-					if( zoneConfig.RepeatsAllowed && timeSinceLastSeen_mSec > Math.Max( 1, zoneConfig.TimeBeforeRepeatsAllowed_Sec ) * 1000 )
+					if( zoneConfig.RepeatsAllowed && timeSinceLastSeen > zoneConfig.TimeBeforeRepeatsAllowed )
 					{
 						mSpeechBubbleInfo.RemoveAt( i );
 					}
@@ -303,8 +299,8 @@ public sealed class Plugin : IDalamudPlugin
 			//	Clean up any expired records.
 			for( int i = mGameChatInfo.Count - 1; i >= 0; --i )
 			{
-				long timeSinceLastSeen_mSec = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - mGameChatInfo[i].TimeLastSeen_mSec;
-				if( timeSinceLastSeen_mSec > 5000 )
+				var timeSinceLastSeen = DateTimeOffset.UtcNow - mGameChatInfo[i].TimeLastSeen;
+				if( timeSinceLastSeen > TimeSpan.FromSeconds( 5 ) )
 				{
 					mGameChatInfo.RemoveAt( i );
 				}
@@ -318,115 +314,104 @@ public sealed class Plugin : IDalamudPlugin
 			{
 				if( !mSpeechBubbleInfo[i].HasBeenPrinted )
 				{
-					SpeechBubbleInfo matchingChatEntry = null;
+					NpcMessageInfo? matchingChatEntry = null;
 					lock( mGameChatInfoLockObj )
 					{
-						matchingChatEntry = mGameChatInfo.Find( ( x ) => { return x.IsSameMessageAs( mSpeechBubbleInfo[i] ); } );
+						matchingChatEntry = mGameChatInfo.Find( x => x.Equals( mSpeechBubbleInfo[i], true ) );
 					}
-					if( matchingChatEntry != null )
-					{
-						mSpeechBubbleInfo[i].HasBeenPrinted = true;
-					}
-					else
-					{
-						mSpeechBubbleInfo[i].HasBeenPrinted = PrintChatMessage( mSpeechBubbleInfo[i].MessageText, mSpeechBubbleInfo[i].SpeakerName );
-					}
+
+					if( matchingChatEntry is not null ) mSpeechBubbleInfo[i].FlagGameHandledPrinting();
+					else mSpeechBubbleInfo[i].PrintToChatLog();
 				}
 			}
 		}
 	}
 
-	private bool PrintChatMessage( SeString msg, SeString speakerName )
+	private unsafe void LogBubbleInfo( AgentScreenLog* pThis, GameObject* pActor, byte* pString, byte param3, Int32 attachmentPoint )
 	{
-		//	Remove line breaks if desired.
-		if( !mConfiguration.KeepLineBreaks )
+		//	Verbose Logging
+		if( DalamudAPI.PluginLog.MinimumLogLevel <= Serilog.Events.LogEventLevel.Verbose )
 		{
-			msg = RemoveLineBreaks( msg );
+			var actorName = pActor is not null ? SeString.Parse( pActor->Name )?.TextValue : "null speaker";
+			if( string.IsNullOrWhiteSpace( actorName ) ) actorName = "empty speaker";
+			var message = pString is not null ? MemoryHelper.ReadSeStringNullTerminated( (nint)pString )?.TextValue : "null message";
+			if( string.IsNullOrWhiteSpace( message ) ) message = "empty message";
+			string str = $"Call to OpenChatBubble( 0x{(nint)pThis:X}, 0x{(nint)pActor:X}, 0x{(nint)pString:X}, {param3}, {attachmentPoint} )\r\n";
+			str += $"{actorName}: {message}\r\n";
+			if( pActor is not null )
+			{
+				str += $"Kind - {pActor->ObjectKind}";
+				str += $", EntityID - {pActor->EntityId}";
+				str += $", BaseID - {pActor->BaseId}";
+				//	90% sure that we could just GetNameId() it without checking, but I would rather not risk it.
+				if( pActor->ObjectKind is ObjectKind.BattleNpc ) str += $", Name ID - {( (Character*)pActor )->NameId}";
+			}
+			DalamudAPI.PluginLog.Verbose( str );
 		}
 
-		//	Rate limit this as a last resort in case we messed up.
-		long currentTime_mSec = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-		if( currentTime_mSec - mLastTimeChatPrinted_mSec >= mConfiguration.MinTimeBetweenChatPrints_mSec )
+		//	Debug Logging
+		if( param3 > 0 && DalamudAPI.PluginLog.MinimumLogLevel <= Serilog.Events.LogEventLevel.Debug )
 		{
-			if( speakerName.TextValue.Length == 0 &&
-				mConfiguration.DefaultSenderName.Length > 0 &&
-				IsValidSenderName( mConfiguration.DefaultSenderName ) )
+			string str = $"Atypical chat bubble opened in territory {DalamudAPI.ClientState?.TerritoryType ?? 0}:\r\n";
+			str += $"AgentScreenLog*: 0x{(nint)pThis:X}\r\n";
+			str += "Actor Info: ";
+			if( pActor is null ) str += "Invalid!";
+			else
 			{
-				speakerName = mConfiguration.DefaultSenderName;
+				str += $"Kind - {pActor->ObjectKind}";
+				str += $", EntityID - {pActor->EntityId}";
+				str += $", Name - \"{SeString.Parse( pActor->Name )?.TextValue ?? "Invalid!"}\"";
+				str += $", BaseID - {pActor->BaseId}";
+				//	90% sure that we could just GetNameId() it without checking, but I would rather not risk it.
+				if( pActor->ObjectKind is ObjectKind.BattleNpc ) str += $", Name ID - {( (Character*)pActor )->NameId}";
 			}
+			str += $"\r\nparam3: {param3}";
+			str += $"\r\nAttachment Point: {attachmentPoint}";
 
-			var chatEntry = new Dalamud.Game.Text.XivChatEntry
+			DalamudAPI.PluginLog.Debug( str );
+
+			if( mConfiguration.DEBUG_NotifyOnUnknownParam3Bubble )
 			{
-				Type = mConfiguration.ChatChannelToUse,
-				Name = speakerName,
-				Message = msg
-			};
+				SeString chatStr = new();
+				chatStr.Payloads.Add( new UIForegroundPayload( 500 ) );
+				chatStr.Payloads.Add( new TextPayload( "Atypical chat bubble encountered; check the log for more information." ) );
+				chatStr.Payloads.Add( new UIForegroundPayload( 0 ) );
 
-			DalamudAPI.ChatGui.Print( chatEntry );
-			mLastTimeChatPrinted_mSec = currentTime_mSec;
-			return true;
+				DalamudAPI.ChatGui.Print( new()
+				{
+					Message = chatStr,
+					Type = XivChatType.SystemMessage,
+				} );
+			}
+		}
+	}
+
+	/*private UInt16 DetermineMessageTextColor()
+	{
+		//***** TODO: Find/add missing announcements color config if it exists.
+		if( mConfiguration.NpcMessageTextColor > 0 )
+		{
+			return mConfiguration.NpcMessageTextColor;
+		}
+		else if( DalamudAPI.GameConfig.TryGet( Dalamud.Game.Config.UiConfigOption.ColorNpcSay, out uint color ) )
+		{
+			return (UInt16)color;
 		}
 		else
 		{
-			return false;
+			return 0;
 		}
-	}
+	}*/
 
-	private static SeString RemoveLineBreaks( SeString str )
+	internal static bool IsValidCustomSenderName( SeString? str )
 	{
-		SeString newStr = SeStringDeepCopy( str );
+		var textVal = str?.TextValue;
+		if( textVal is null ) return false;
 
-		for( int i = newStr.Payloads.Count - 1; i >= 0 ; --i )
-		{
-			if( newStr.Payloads[i].Type == PayloadType.NewLine )
-			{
-				if( i > 0 ) 
-				{
-					int j = i - 1;
-					while( j >= 0 && newStr.Payloads[j].Type != PayloadType.RawText ) --j;
-
-					if( j >= 0 )
-					{
-						TextPayload prevTextPayload = (TextPayload)newStr.Payloads[j];
-						if( prevTextPayload.Text.EndsWith( '-' ) )
-						{
-							newStr.Payloads[j] = new TextPayload( prevTextPayload.Text[..^1] );
-							newStr.Payloads.RemoveAt( i );
-						}
-						else if( !prevTextPayload.Text.EndsWith( ' ' ) )
-						{
-							newStr.Payloads[i] = new TextPayload( " " );
-						}
-					}
-				}
-				else
-				{
-					newStr.Payloads.RemoveAt( i );
-				}
-			}
-		}
-
-		return newStr;
-	}
-
-	unsafe private static SeString SeStringDeepCopy( SeString str )
-	{
-		var bytes = str.Encode();
-		SeString newStr;
-		fixed( byte* pBytes = bytes )
-		{
-			newStr = MemoryHelper.ReadSeStringNullTerminated( new IntPtr( pBytes ) );
-		}
-		newStr ??= SeString.Empty;
-		return newStr;
-	}
-
-	internal static bool IsValidSenderName( string str )
-	{
-		return str.Length <= 20 && str.All( x => {
-					return	( x >= 'A' && x <= 'Z' ) ||
-							( x >= 'a' && x <= 'z' ) ||
-							( x is ' ' or '\'' or '-' );
+		return textVal.Length <= 20 && textVal.All( x => {
+					return	x >= 'A' && x <= 'Z' ||
+							x >= 'a' && x <= 'z' ||
+							x is ' ' or '\'' or '-';
 				} );
 	}
 
@@ -436,66 +421,99 @@ public sealed class Plugin : IDalamudPlugin
 		ClearGameChatHistory();
 	}
 
+	private void OnLogin()
+	{
+		UITextColorSelector.CacheUITheme();
+	}
+
+	private void OnLogout( int type, int code )
+	{
+		UITextColorSelector.CacheUITheme();
+	}
+
 	internal void ClearSpeechBubbleHistory()
 	{
-		lock( mSpeechBubbleInfoLockObj )
-		{
-			mSpeechBubbleInfo.Clear();
-		}
+		lock( mSpeechBubbleInfoLockObj ) mSpeechBubbleInfo.Clear();
 	}
 
 	internal void ClearGameChatHistory()
 	{
-		lock( mGameChatInfoLockObj )
+		lock( mGameChatInfoLockObj ) mGameChatInfo.Clear();
+	}
+
+	internal void ExportLocalizableStrings()
+	{
+		string pwd = Directory.GetCurrentDirectory();
+
+		try
 		{
-			mGameChatInfo.Clear();
+			var folderPath = mPluginInterface.IsDev ?
+				mPluginInterface.AssemblyLocation.DirectoryName :
+				mPluginInterface.GetPluginLocDirectory();
+
+			if( !string.IsNullOrWhiteSpace( folderPath ) )
+			{
+				Directory.SetCurrentDirectory( folderPath );
+				Loc.ExportLocalizable();
+			}
+		}
+		finally
+		{
+			Directory.SetCurrentDirectory( pwd );
 		}
 	}
 
-	internal List<SpeechBubbleInfo> GetSpeechBubbleInfo_DEBUG()
+	internal IEnumerable<NpcMessageInfo> DEBUG_GetSpeechBubbleInfo()
 	{
-		lock( mSpeechBubbleInfoLockObj )
-		{
-			return new( mSpeechBubbleInfo );
-		}
+		lock( mSpeechBubbleInfoLockObj ) return mSpeechBubbleInfo.ToList();
 	}
 
-	internal List<SpeechBubbleInfo> GetGameChatInfo_DEBUG()
+	internal IEnumerable<NpcMessageInfo> DEBUG_GetGameChatInfo()
 	{
-		lock( mGameChatInfoLockObj )
-		{
-			return new( mGameChatInfo );
-		}
+		lock( mGameChatInfoLockObj ) return mGameChatInfo.ToList();
 	}
 
-	internal void PrintChatMessage_DEBUG( SeString msg, SeString speakerName )
+	internal void DEBUG_InsertTestMessageAsBubble( SeString sender, SeString message )
 	{
-		PrintChatMessage( msg, speakerName );
+		lock( mSpeechBubbleInfoLockObj ) mSpeechBubbleInfo.Add( new( 0xE0000000, ObjectKind.None, 0, sender, message ) );
 	}
 
-	public string Name => "Say What?";
+	internal void DEBUG_InsertTestMessageAsChat( SeString sender, SeString message )
+	{
+		lock( mSpeechBubbleInfoLockObj ) mGameChatInfo.Add( new( 0xE0000000, ObjectKind.None, 0, sender, message ) );
+	}
+
+	public static string Name => "Say What?";
 	internal static string TextCommandName => "/saywhat";
 	internal static string SubcommandName_Config => "config";
 	internal static string SubcommandName_Ban => "ban";
 	internal static string SubcommandName_Unban => "unban";
 	internal static string SubcommandName_Debug => "debug";
 
-	//***** TODO: Maybe validate by regex, but can't figure out how to combine multiple unicode property escapes
-	//private const string ValidSenderNamePattern = @"^[\p{L}'\- ]{0,20}$";
+	//***** TODO
+	//	GameObjects can have names up to 64 bytes long, so we should also limit custom names to that length
+	//	in case the log makes any assumptions.  For simplicity, just assume all characters are double-width.
+	private const string ValidSenderNamePattern = @"\A[\p{L}\p{N}\p{P}\p{Zs}\p{Co}\●^`]{0,32}\z";
 
 	private readonly PluginUI mUI;
 	private readonly Configuration mConfiguration;
 
-	//	Open bubble param3 seems to be related to object validity maybe, and param4 seems like some kind of offset, possibly
-	//	based on object rotation, or may be a bone index for attachment.
-	private unsafe delegate void OpenChatBubbleDelegate( IntPtr pThis, GameObject* pActor, IntPtr pString, byte param3, Int32 attachmentPoint );
-	private readonly Hook<OpenChatBubbleDelegate> mOpenChatBubbleHook;
+	//	Yes, this is a dumb thing to do.  There should never be multiple copies of the plugin (and if there
+	//	are, all bets are already off for a lot of behavior), so the convenience outweighs the "smell".
+	internal static Plugin? Instance { get; private set; } = null;
+	internal static Configuration? CurrentConfiguration => Instance?.mConfiguration;
 
-	private readonly Object mSpeechBubbleInfoLockObj = new();
-	private readonly Object mGameChatInfoLockObj = new();
-	private readonly List<SpeechBubbleInfo> mSpeechBubbleInfo = new();
-	private readonly List<SpeechBubbleInfo> mGameChatInfo = new();
-	private long mLastTimeChatPrinted_mSec;
+	//	Open bubble param3 probably corresponds to the "slowly" column in the Balloon exd, and param4 is bone
+	//	index for attachment.  The actor is probably guaranteed to be a Character, but I am not 100% certain.
+	//	Is the string pointer just a char*, or is it a Utf8String instance?  Does it matter?
+	//***** TODO: Unlikely to be related, but check the fourth parameter when the message goes to both bubble and log.
+	private unsafe delegate void OpenBalloonDelegate( AgentScreenLog* pThis, GameObject* pActor, byte* pString, byte param3, Int32 attachmentPoint );
+	private readonly Hook<OpenBalloonDelegate>? mOpenBalloonHook = null;
+
+	private readonly Lock mSpeechBubbleInfoLockObj = new();
+	private readonly Lock mGameChatInfoLockObj = new();
+	private readonly List<NpcMessageInfo> mSpeechBubbleInfo = new();
+	private readonly List<NpcMessageInfo> mGameChatInfo = new();
 
 	private readonly IDalamudPluginInterface mPluginInterface;
 }

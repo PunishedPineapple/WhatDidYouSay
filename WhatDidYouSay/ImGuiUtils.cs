@@ -2,89 +2,12 @@
 using System.Numerics;
 
 using Dalamud.Bindings.ImGui;
+using Dalamud.Interface;
 
 namespace WhatDidYouSay;
 
 internal static class ImGuiUtils
 {
-	public static void URLLink( string URL, string textToShow = "", bool showTooltip = true, ImFontPtr? iconFont = null )
-	{
-		ImGui.PushStyleColor( ImGuiCol.Text, ImGui.GetStyle().Colors[(int)ImGuiCol.ButtonHovered] );
-		ImGui.Text( textToShow.Length > 0 ? textToShow : URL );
-		ImGui.PopStyleColor();
-		if( ImGui.IsItemHovered() )
-		{
-			ImGui.SetMouseCursor( ImGuiMouseCursor.Hand );
-			if( ImGui.IsMouseClicked( ImGuiMouseButton.Left ) )
-			{
-				Dalamud.Utility.Util.OpenLink( URL );
-			}
-
-			AddUnderline( ImGui.GetStyle().Colors[(int)ImGuiCol.ButtonHovered], 1.0f );
-
-			if( showTooltip )
-			{
-				ImGui.BeginTooltip();
-				if( iconFont != null )
-				{
-					ImGui.PushFont( iconFont.Value );
-					ImGui.Text( "\uF0C1" );
-					ImGui.PopFont();
-					ImGui.SameLine();
-				}
-				ImGui.Text( URL );
-				ImGui.EndTooltip();
-			}
-		}
-		else
-		{
-			AddUnderline( ImGui.GetStyle().Colors[(int)ImGuiCol.Button], 1.0f );
-		}
-	}
-
-	public static void TextLink( Action callback, string textToShow = "" )
-	{
-		ImGui.PushStyleColor( ImGuiCol.Text, ImGui.GetStyle().Colors[(int)ImGuiCol.ButtonHovered] );
-		ImGui.Text( textToShow );
-		ImGui.PopStyleColor();
-		if( ImGui.IsItemHovered() )
-		{
-			ImGui.SetMouseCursor( ImGuiMouseCursor.Hand );
-			if( ImGui.IsMouseClicked( ImGuiMouseButton.Left ) )
-			{
-				callback.Invoke();
-			}
-
-			AddUnderline( ImGui.GetStyle().Colors[(int)ImGuiCol.ButtonHovered], 1.0f );
-		}
-		else
-		{
-			AddUnderline( ImGui.GetStyle().Colors[(int)ImGuiCol.Button], 1.0f );
-		}
-	}
-
-	public static void AddUnderline( Vector4 color, float thickness )
-	{
-		Vector2 min = ImGui.GetItemRectMin();
-		Vector2 max = ImGui.GetItemRectMax();
-		min.Y = max.Y;
-		ImGui.GetWindowDrawList().AddLine( min, max, ColorVecToUInt( color ), thickness );
-	}
-
-	public static void AddOverline( Vector4 color, float thickness )
-	{
-		Vector2 min = ImGui.GetItemRectMin();
-		Vector2 max = ImGui.GetItemRectMax();
-		max.Y = min.Y;
-		ImGui.GetWindowDrawList().AddLine( min, max, ColorVecToUInt( color ), thickness );
-	}
-
-	public static void RightAlignTableText( string str )
-	{
-		ImGui.SetCursorPosX( ImGui.GetCursorPosX() + ImGui.GetColumnWidth() - ImGui.CalcTextSize( str ).X - ImGui.GetScrollX() - 2 * ImGui.GetStyle().ItemSpacing.X );
-		ImGui.Text( str );
-	}
-
 	public static UInt32 ColorVecToUInt( Vector4 color )
 	{
 		return
@@ -109,6 +32,11 @@ internal static class ImGuiUtils
 	{
 		if( sameLine ) ImGui.SameLine();
 		ImGui.TextDisabled( marker );
+		TooltipLastItem( description );
+	}
+
+	public static void TooltipLastItem( string description )
+	{
 		if( ImGui.IsItemHovered() )
 		{
 			ImGui.BeginTooltip();
@@ -119,60 +47,38 @@ internal static class ImGuiUtils
 		}
 	}
 
-	public static void TitleBarHelpButton( Action callback, ImFontPtr? iconFont = null )
+	public static void AddUnderline( Vector4 color, float thickness )
 	{
-		var storedCursorPos = ImGui.GetCursorPos();
-		if( iconFont != null ) ImGui.PushFont( iconFont.Value );
-		ImGui.PushClipRect( ImGui.GetWindowPos(), ImGui.GetWindowPos() + ImGui.GetWindowSize(), false );
-		
-		try
-		{
-			string buttonText = iconFont != null ? "\uF059" : "(?)";
-
-			var iconSize = ImGui.CalcTextSize( buttonText );
-			float titlebarHeight = iconSize.Y + ImGui.GetStyle().FramePadding.Y * 2f;
-			Vector2 buttonPos = new( ImGui.GetWindowSize().X - iconSize.X * 2f - ImGui.GetStyle().WindowPadding.X, Math.Max( 0, ( titlebarHeight - iconSize.Y ) / 2f - 1f ) );
-
-			ImGui.SetCursorPos( buttonPos );
-			ImGui.PushStyleColor( ImGuiCol.Text, ImGui.GetStyle().Colors[(int)ImGuiCol.ButtonHovered] );
-			ImGui.Text( buttonText );
-			ImGui.PopStyleColor();
-
-			if( ImGui.IsItemHovered() )
-			{
-				//	Redraw the text in the hovered color
-				ImGui.SetCursorPos( buttonPos );
-				ImGui.Text( buttonText );
-
-				//	Handle the click.
-				if( ImGui.IsMouseClicked( ImGuiMouseButton.Left ) )
-				{
-					callback.Invoke();
-				}
-			}
-		}
-		finally
-		{
-			ImGui.SetCursorPos( storedCursorPos );
-			if( iconFont != null ) ImGui.PopFont();
-			ImGui.PopClipRect();
-		}
-
+		Vector2 min = ImGui.GetItemRectMin();
+		Vector2 max = ImGui.GetItemRectMax();
+		min.Y = max.Y;
+		ImGui.GetWindowDrawList().AddLine( min, max, ColorVecToUInt( color ), thickness );
 	}
 
-	public const ImGuiWindowFlags OverlayWindowFlags =	ImGuiWindowFlags.NoDecoration |
-														ImGuiWindowFlags.NoSavedSettings |
-														ImGuiWindowFlags.NoMove |
-														ImGuiWindowFlags.NoMouseInputs |
-														ImGuiWindowFlags.NoFocusOnAppearing |
-														ImGuiWindowFlags.NoBackground |
-														ImGuiWindowFlags.NoNav;
+	public static unsafe void CopyableAddress( string addressDescription, void* address ) => CopyableAddress( addressDescription, (nint)address );
 
-	public const ImGuiWindowFlags LayoutWindowFlags =	ImGuiWindowFlags.NoSavedSettings |
-														ImGuiWindowFlags.NoMove |
-														ImGuiWindowFlags.NoMouseInputs |
-														ImGuiWindowFlags.NoFocusOnAppearing |
-														ImGuiWindowFlags.NoBackground |
-														ImGuiWindowFlags.NoNav |
-														ImGuiWindowFlags.NoScrollbar;
+	public static void CopyableAddress( string addressDescription, nint address )
+	{
+		ImGui.Text( $"{addressDescription} address:" );
+		ImGui.SameLine();
+		ImGui.Text( $"0x{address:X}" );
+		if( ImGui.IsItemClicked() ) ImGui.SetClipboardText( $"{address:X}" );
+		if( ImGui.IsItemHovered() )
+		{
+			AddUnderline( Vector4.One, 1f );
+			ImGui.SetMouseCursor( ImGuiMouseCursor.Hand );
+			ImGui.SameLine();
+			ImGui.PushFont( UiBuilder.IconFont );
+			try
+			{
+				ImGui.Text( "\uF0C5" );
+			}
+			finally
+			{
+				ImGui.PopFont();
+			}
+		}
+	}
+
+	public const float SectionSpacingSize = 20f;
 }
