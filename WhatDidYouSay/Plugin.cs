@@ -296,7 +296,7 @@ public sealed class Plugin : IDalamudPlugin
 				{
 					//***** TODO: Set the PlayTime for the balloon if below configured minimum.
 					//***** TODO: If this is has the logmessage flag set, we're finished.
-					balloonText = SeString.Parse( pChara->TellBalloon.Text );
+					balloonText = SeString.Parse( pChara->YellBalloon.Text );
 					DalamudAPI.PluginLog.Verbose( $"Found valid text for NPCYellBalloon on object 0x{obj.GameObjectId:X}: \"{balloonText.TextValue}\"." );
 				}
 				else if( !pChara->Balloon.Text.IsEmpty )
@@ -420,6 +420,24 @@ public sealed class Plugin : IDalamudPlugin
 	internal IEnumerable<NpcMessageInfo> DEBUG_GetSpeechBubbleInfo()
 	{
 		lock( mNPCBalloonHistoryLockObj ) return mNPCBalloonHistory.ToList();
+	}
+
+	internal void DEBUG_InsertTestMessage( SeString sender, SeString message )
+	{
+		var balloonInfo = new NpcMessageInfo()
+		{
+			SpeakerObjectID = 0,
+			SpeakerKind = Dalamud.Game.ClientState.Objects.Enums.ObjectKind.None,
+			SpeakerBaseID = 0,
+			SpeakerNameID = 0,
+			SpeakerName = sender,
+			Message = message,
+		};
+
+		lock( mNPCBalloonHistoryLockObj )
+		{
+			mNPCBalloonHistory.Add( balloonInfo );
+		}
 	}
 
 	public static string Name => "Say What?";

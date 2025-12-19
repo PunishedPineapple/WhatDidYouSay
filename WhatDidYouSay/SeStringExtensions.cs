@@ -7,17 +7,6 @@ namespace WhatDidYouSay;
 
 internal static class SeStringExtensions
 {
-	#region Class Extensions
-
-	extension( SeString )
-	{
-		public static SeString FromString( string str ) => new( new Payload[] { new TextPayload( str ) } );
-	}
-
-	#endregion
-
-	#region Instance Extensions
-
 	extension( SeString str )
 	{
 		public SeString Duplicate()
@@ -120,6 +109,4 @@ internal static class SeStringExtensions
 			return newStr;
 		}
 	}
-
-	#endregion
 }

@@ -106,7 +106,7 @@ internal class NpcMessageInfo : IEquatable<NpcMessageInfo>
 			}
 			//else if( debug name mode is on )
 			{
-				return SeString.FromString( $"BNpc {SpeakerBaseID}" );
+				return $"BNpc {SpeakerBaseID}";
 			}
 			//else if( BNpcBase has customize information for player races )
 			{
@@ -121,7 +121,7 @@ internal class NpcMessageInfo : IEquatable<NpcMessageInfo>
 			}
 			//else if( debug name mode is on )
 			{
-				return SeString.FromString( $"ENpc {SpeakerBaseID}" );
+				return $"ENpc {SpeakerBaseID}";
 			}
 			//else if( ENpcBase has customize information for player races )
 			{
@@ -130,7 +130,7 @@ internal class NpcMessageInfo : IEquatable<NpcMessageInfo>
 		}
 		//else if( debug name mode is on )
 		{
-			return SeString.FromString( $"Unk 0x{SpeakerBaseID:X}" );
+			return $"Unk 0x{SpeakerBaseID:X}";
 		}
 
 		//	Configured default name.
@@ -140,7 +140,7 @@ internal class NpcMessageInfo : IEquatable<NpcMessageInfo>
 			return defaultSender;
 		}
 
-		return SeString.FromString( "NPC" );
+		return "NPC";
 	}
 
 	public static DateTimeOffset LastTimeChatPrinted { get; protected set; } = DateTimeOffset.UnixEpoch;
