@@ -1,6 +1,4 @@
 ﻿using System;
-using System.Diagnostics;
-using System.Text;
 
 using CheapLoc;
 
@@ -8,14 +6,11 @@ using Dalamud.Bindings.ImGui;
 using Dalamud.Game.Text.SeStringHandling;
 using Dalamud.Interface.Utility;
 using Dalamud.Interface.Windowing;
-using Dalamud.Memory;
 
 using FFXIVClientStructs.FFXIV.Client.System.Framework;
 using FFXIVClientStructs.FFXIV.Component.GUI;
 
 using Lumina.Excel.Sheets;
-
-using static Dalamud.Interface.Utility.Raii.ImRaii;
 
 namespace WhatDidYouSay;
 
@@ -119,52 +114,22 @@ internal sealed class Window_Debug: Window, IDisposable
 		SeString testSender = "Debug Sender";
 		SeString testMessage = $"Message Color: { mConfiguration.NpcMessageTextColor}, { mConfiguration.NpcMessageGlowColor}.  Sender Color: { mConfiguration.SenderTextColor_Unknown}, { mConfiguration.SenderGlowColor_Unknown}.";
 		ImGui.SameLine();
-		if( ImGui.Button( "As Bubble" ) ) mPlugin.DEBUG_InsertTestMessageAsBubble( testSender, testMessage );
-		ImGui.SameLine();
-		if( ImGui.Button( "As Log Message" ) ) mPlugin.DEBUG_InsertTestMessageAsChat( testSender, testMessage );
+		if( ImGui.Button( "As Bubble" ) ) mPlugin.DEBUG_InsertTestMessage( testSender, testMessage );
 
 		ImGuiHelpers.ScaledDummy( ImGuiUtils.SectionSpacingSize );
 
 		if( ImGui.Button( "Reset seen speech history" ) )
 		{
-			mPlugin.ClearSpeechBubbleHistory();
+			mPlugin.ClearNPCBalloonHistory();
 		}
 
 		ImGui.Spacing();
 
 		foreach( var entry in mPlugin.DEBUG_GetSpeechBubbleInfo() )
 		{
-			if( ImGui.Button( $"P###btn-reprint-bubble{entry.GetHashCode()}" ) )
-			{
-				entry.PrintToChatLog();
-			}
+			if( ImGui.Button( $"P###btn-reprint-bubble{entry.GetHashCode()}" ) ) entry.PrintToChatLog();
 			ImGui.SameLine();
-			ImGui.Text( $"String: {entry.Message}, Speaker: {entry.SpeakerName}, Time Last Seen: {entry.TimeLastSeen.ToString( "hh:mm:ss.fff" )}, Has Been Printed {entry.HasBeenPrinted}" );
-			ImGui.Indent();
-			foreach( var payload in entry.Message.Payloads )
-			{
-				ImGui.Text( $"Type: {payload.Type}, Contents: {payload.ToString()}" );
-			}
-			ImGui.Unindent();
-		}
-
-		ImGuiHelpers.ScaledDummy( ImGuiUtils.SectionSpacingSize );
-
-		if( ImGui.Button( "Reset seen chat history" ) )
-		{
-			mPlugin.ClearGameChatHistory();
-		}
-
-		ImGui.Spacing();
-
-		foreach( var entry in mPlugin.DEBUG_GetGameChatInfo() )
-		{
-			if( ImGui.Button( $"P###btn-reprint-chat{entry.GetHashCode()}" ) )
-			{
-				entry.PrintToChatLog();
-			}
-			ImGui.SameLine();
-			ImGui.Text( $"String: {entry.Message}, Speaker: {entry.SpeakerName}, Time Last Seen: {entry.TimeLastSeen.ToString( "hh:mm:ss.fff" )}, Has Been Printed {entry.HasBeenPrinted}" );
+			ImGui.Text( entry.GetDebugString() );
 		}
 	}
 

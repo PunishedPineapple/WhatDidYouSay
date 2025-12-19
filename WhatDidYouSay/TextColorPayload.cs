@@ -2,17 +2,8 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 using Dalamud.Game.Text.SeStringHandling;
-
-using Lumina.Excel;
-
-using Dalamud.Data;
-
-using Lumina.Excel.Sheets;
-using FFXIVClientStructs.FFXIV.Client.Graphics;
 
 namespace WhatDidYouSay;
 

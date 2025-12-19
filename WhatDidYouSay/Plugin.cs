@@ -7,19 +7,16 @@ using System.Threading;
 using CheapLoc;
 
 using Dalamud.Game.ClientState.Conditions;
+using Dalamud.Game.ClientState.Objects.Types;
 using Dalamud.Game.Command;
-using Dalamud.Game.Text;
 using Dalamud.Game.Text.SeStringHandling;
-using Dalamud.Game.Text.SeStringHandling.Payloads;
 using Dalamud.Hooking;
-using Dalamud.Memory;
 using Dalamud.Plugin;
 using Dalamud.Plugin.Services;
 using Dalamud.Utility;
 
 using FFXIVClientStructs.FFXIV.Client.Game.Character;
 using FFXIVClientStructs.FFXIV.Client.Game.Object;
-using FFXIVClientStructs.FFXIV.Client.System.String;
 using FFXIVClientStructs.FFXIV.Client.UI.Agent;
 
 namespace WhatDidYouSay;
@@ -60,14 +57,27 @@ public sealed class Plugin : IDalamudPlugin
 			if( fpOpenBalloon != IntPtr.Zero )
 			{
 				var addressInfo = Util.DescribeAddress( fpOpenBalloon );
-				DalamudAPI.PluginLog.Information( $"OpenChatBubble function found at {addressInfo}" );	//***** TODO: Verify and update other plugins to do it like this too.
+				DalamudAPI.PluginLog.Information( $"AgentScreenLog::OpenBalloon function found at {addressInfo}." );
 				mOpenBalloonHook = DalamudAPI.GameInteropProvider.HookFromAddress<OpenBalloonDelegate>( fpOpenBalloon, OpenBalloonDetour );
 				mOpenBalloonHook?.Enable();
 			}
 			else
 			{
-				throw new Exception( "Unable to find the specified function signature for OpenChatBubble." );
+				throw new Exception( "Unable to find the specified function signature for AgentScreenLog::OpenBalloon." );
 			}
+
+			/*IntPtr fpCloseBalloon = DalamudAPI.SigScanner.ScanText( "E8 ?? ?? ?? ?? EB ?? 45 33 C0 48 8D 4E" );
+			if( fpCloseBalloon != IntPtr.Zero )
+			{
+				var addressInfo = Util.DescribeAddress( fpCloseBalloon );
+				DalamudAPI.PluginLog.Information( $"AgentScreenLog::CloseBalloon function found at {addressInfo}." );
+				mCloseBalloonHook = DalamudAPI.GameInteropProvider.HookFromAddress<CloseBalloonDelegate>( fpCloseBalloon, CloseBalloonDetour );
+				mCloseBalloonHook?.Enable();
+			}
+			else
+			{
+				throw new Exception( "Unable to find the specified function signature for AgentScreenLog::CloseBalloon." );
+			}*/
 		}
 
 		//	UI Initialization
@@ -81,7 +91,6 @@ public sealed class Plugin : IDalamudPlugin
 		DalamudAPI.ClientState.Logout += OnLogout;
 		DalamudAPI.ClientState.TerritoryChanged += OnTerritoryChanged;
 		DalamudAPI.Framework.Update += OnGameFrameworkUpdate;
-		DalamudAPI.ChatGui.ChatMessage += OnChatMessage;
 	}
 
 	public void Dispose()
@@ -89,7 +98,9 @@ public sealed class Plugin : IDalamudPlugin
 		mOpenBalloonHook?.Disable();
 		mOpenBalloonHook?.Dispose();
 
-		DalamudAPI.ChatGui.ChatMessage -= OnChatMessage;
+		//mCloseBalloonHook?.Disable();
+		//mCloseBalloonHook?.Dispose();
+
 		DalamudAPI.Framework.Update -= OnGameFrameworkUpdate;
 		DalamudAPI.ClientState.TerritoryChanged -= OnTerritoryChanged;
 		DalamudAPI.ClientState.Logout -= OnLogout;
@@ -198,46 +209,22 @@ public sealed class Plugin : IDalamudPlugin
 
 	private void ToggleConfigUI() => mUI.Window_Settings.Toggle();
 
-	private unsafe void OpenBalloonDetour( AgentScreenLog* pThis, GameObject* pActor, byte* pString, byte param3, Int32 attachmentPoint )
+	private unsafe void OpenBalloonDetour( AgentScreenLog* pAgentScreenLog, Character* pChara, byte* pString, bool param3, Int32 parentBoneId )
 	{
+		//	Do the bare minimum here that we need to track balloons later, both because it is safer to do things in our own framework
+		//	event, and because it is cleaner to let the game complete what it is doing before we grab the relevant information.
 		try
 		{
-			//	First handle any logging that we want to do.
-			LogBubbleInfo( pThis, pActor, pString, param3, attachmentPoint );
+			DalamudAPI.PluginLog.Verbose( $"OpenBalloon( 0x{(nint)pAgentScreenLog:X}, 0x{(nint)pChara:X}, 0x{(nint)pString:X}, {param3}, {parentBoneId} )" );
 
-			ZoneSpecificConfig? zoneConfig = null;
-			mConfiguration.mZoneConfigOverrideDict?.TryGetValue( DalamudAPI.ClientState.TerritoryType, out zoneConfig );
-
-			//	The new player chat bubbles use a separate system, so we should theoretically not
-			//	have to worry about them anymore, but have an option to keep checking in case some
-			//	other plugin does something with them in the future.
-			if( pActor is not null &&
-				pString is not null &&
-				!DalamudAPI.ClientState.IsPvPExcludingDen &&
-				zoneConfig?.DisableForZone != true &&
-				( pActor->ObjectKind != ObjectKind.Pc || !mConfiguration.IgnorePlayerCharacterBubbles ) )
+			if( pChara is null ) DalamudAPI.PluginLog.Warning( $"OpenBalloon called with a null Character*!  This should never happen." );
+			else if( pChara->IsCharacter() )
 			{
-				var currentTime = DateTimeOffset.UtcNow;
-				var bubbleInfo = new NpcMessageInfo()
-				{
-					SpeakerEntityID = pActor->EntityId,
-					SpeakerKind = pActor->ObjectKind,
-					SpeakerBaseID = pActor->ObjectKind is ObjectKind.BattleNpc or ObjectKind.EventNpc ? ((Character*)pActor)->BaseId : 0,
-					SpeakerName = SeString.Parse( pActor->Name ) ?? SeString.Empty,
-					Message = MemoryHelper.ReadSeStringNullTerminated( (nint)pString )
-				};
-
-				bool ignoreSenderIDForEquality = DalamudAPI.Condition[ConditionFlag.BoundByDuty] ?
-				mConfiguration.RepeatDetectionIgnoresSenderID_InInstance :
-				mConfiguration.RepeatDetectionIgnoresSenderID;
-
-				lock( mSpeechBubbleInfoLockObj )
-				{
-					var extantMatch = mSpeechBubbleInfo.Find( x => x.Equals( bubbleInfo, ignoreSenderIDForEquality ) );
-					if( extantMatch is not null ) extantMatch.FlagMessageSeenAgain();
-					else mSpeechBubbleInfo.Add( bubbleInfo );
-				}
+				var objectID = pChara->GetGameObjectId();
+				mObjectsWithOpenedBalloons.Add( objectID );
+				DalamudAPI.PluginLog.Debug( $"OpenBalloon called for character with object ID 0x{objectID:X} (at 0x{(nint)pChara:X}) on AgentScreenLog at 0x{(nint)pAgentScreenLog:X}." );
 			}
+			else DalamudAPI.PluginLog.Warning( $"OpenBalloon called with an object that is not a Character!  This should never happen." );
 		}
 		catch( Exception e )
 		{
@@ -245,144 +232,117 @@ public sealed class Plugin : IDalamudPlugin
 		}
 		finally
 		{
-			mOpenBalloonHook?.Original( pThis, pActor, pString, param3, attachmentPoint );
+			mOpenBalloonHook?.Original( pAgentScreenLog, pChara, pString, param3, parentBoneId );
 		}
 	}
 
-	private void OnChatMessage( XivChatType type, Int32 timestamp, ref SeString sender, ref SeString message, ref bool isHandled )
+	/*private unsafe void CloseBalloonDetour( AgentScreenLog* pAgentScreenLog, Character* pChara )
 	{
-		//***** TODO: Hook the function that determines whether to log the line and just skip if we're in that with a line that will print.
-
-		//	We want to keep a short record of NPC dialogue messages that the game sends itself, because
-		//	in some cases, these can duplicate speech bubbles.  We'll use these to avoid duplicate log lines.
-		if( type.Channel == XivChatType.NPCDialogue && mConfiguration.IgnoreIfAlreadyInChat_NPCDialogue ||
-			type.Channel == XivChatType.NPCDialogueAnnouncements && mConfiguration.IgnoreIfAlreadyInChat_NPCDialogueAnnouncements )
+		try
 		{
-			lock( mGameChatInfoLockObj )
+			DalamudAPI.PluginLog.Verbose( $"CloseBalloon( 0x{(nint)pAgentScreenLog:X}, 0x{(nint)pChara:X} )" );
+
+			if( pChara is null ) DalamudAPI.PluginLog.Information( $"CloseBalloon called with a null Character*!" );
+			else if( pChara->IsCharacter() )
 			{
-				mGameChatInfo.Add( new( 0xE000000, ObjectKind.None, 0, sender, message ) );
+				var objectID = pChara->GetGameObjectId();
+				mObjectsWithClosedBalloons.Add( objectID );
+				DalamudAPI.PluginLog.Debug( $"CloseBalloon called for character with object ID 0x{objectID:X} (at 0x{(nint)pChara:X}) on AgentScreenLog at 0x{(nint)pAgentScreenLog:X}." );
 			}
+			else DalamudAPI.PluginLog.Warning( $"CloseBalloon called with an object that is not a Character!  This should never happen." );
 		}
-	}
+		catch( Exception e )
+		{
+			DalamudAPI.PluginLog.Error( $"Exception in \"{nameof( CloseBalloonDetour )}\":\r\n{e}" );
+		}
+		finally
+		{
+			mCloseBalloonHook?.Original( pAgentScreenLog, pChara );
+		}
+	}*/
 
 	private unsafe void OnGameFrameworkUpdate( IFramework framework )
 	{
 		if( !DalamudAPI.ClientState.IsLoggedIn ) return;
 
-		lock( mSpeechBubbleInfoLockObj )
+		//	Figure out how long we should track messages for repeats.
+		TimeSpan messageInfoLifetime = TimeSpan.MaxValue;
+		if( mConfiguration.mZoneConfigOverrideDict?.TryGetValue( DalamudAPI.ClientState.TerritoryType, out ZoneSpecificConfig? zoneConfig ) == true &&
+			zoneConfig.RepeatsAllowed )
 		{
-			//	Clean up any expired records.
-			for( int i = mSpeechBubbleInfo.Count - 1; i >= 0; --i )
+			messageInfoLifetime = zoneConfig.TimeBeforeRepeatsAllowed;
+		}
+		else if( DalamudAPI.Condition[ConditionFlag.BoundByDuty] && mConfiguration.RepeatsAllowed )
+		{
+			messageInfoLifetime = mConfiguration.TimeBeforeRepeatsAllowed_InInstance;
+		}
+		else if( mConfiguration.RepeatsAllowed )
+		{
+			messageInfoLifetime = mConfiguration.TimeBeforeRepeatsAllowed;
+		}
+		
+		//	Clean up any tracked message info that has expired.
+		mNPCBalloonHistory.RemoveAll( x => x.IsExpired( messageInfoLifetime ) );
+
+		//	Handle any new balloons.
+		var objectsWithNewBalloons = DalamudAPI.ObjectTable.Where( x => mObjectsWithOpenedBalloons.Contains( x.GameObjectId ) );
+		foreach( var obj in objectsWithNewBalloons )
+		{
+			if( obj.IsValid() && obj.Address != 0 && obj is ICharacter chara )
 			{
-				ZoneSpecificConfig? zoneConfig = null;
-				mConfiguration.mZoneConfigOverrideDict?.TryGetValue( DalamudAPI.ClientState.TerritoryType, out zoneConfig );
-				var timeSinceLastSeen = DateTimeOffset.UtcNow - mSpeechBubbleInfo[i].TimeLastSeen;
-				bool delete_OutOfInstance = mConfiguration.RepeatsAllowed && timeSinceLastSeen > mConfiguration.TimeBeforeRepeatsAllowed;
-				bool delete_InInstance = mConfiguration.RepeatsAllowedInInstance && timeSinceLastSeen > mConfiguration.TimeBeforeRepeatsAllowed_InInstance;
-				
-				if( zoneConfig is not null )
+				SeString? balloonText = null;
+				var pChara = (Character*)chara.Address;
+				if( !pChara->YellBalloon.Text.IsEmpty )
 				{
-					if( zoneConfig.RepeatsAllowed && timeSinceLastSeen > zoneConfig.TimeBeforeRepeatsAllowed )
+					//***** TODO: Set the PlayTime for the balloon if below configured minimum.
+					//***** TODO: If this is has the logmessage flag set, we're finished.
+					balloonText = SeString.Parse( pChara->TellBalloon.Text );
+					DalamudAPI.PluginLog.Verbose( $"Found valid text for NPCYellBalloon on object 0x{obj.GameObjectId:X}: \"{balloonText.TextValue}\"." );
+				}
+				else if( !pChara->Balloon.Text.IsEmpty )
+				{
+					//***** TODO: Set the PlayTime for the balloon if below configured minimum.
+					balloonText = SeString.Parse( pChara->Balloon.Text );
+					DalamudAPI.PluginLog.Verbose( $"Found valid text for Balloon on object 0x{obj.GameObjectId:X}: \"{balloonText.TextValue}\"." );
+				}
+
+				//	Create message info for this balloon if possible, and add or update as appropriate.
+				if( balloonText is not null )
+				{
+					var balloonInfo = new NpcMessageInfo()
 					{
-						mSpeechBubbleInfo.RemoveAt( i );
+						SpeakerObjectID = chara.GameObjectId,
+						SpeakerKind = chara.ObjectKind,
+						SpeakerBaseID = chara.BaseId,
+						SpeakerNameID = chara.NameId,
+						SpeakerName = chara.Name,
+						Message = balloonText,
+					};
+
+					//***** TODO: Use the configured sender comparison type.
+					var match = mNPCBalloonHistory.FirstOrDefault( x => x.Equals( balloonInfo, false, true, NpcMessageInfo.SenderComparisonType.ObjectID ) );
+					if( match is not null )
+					{
+						match.FlagMessageSeenAgain();
+						DalamudAPI.PluginLog.Verbose( $"Flagged existing message info for object 0x{obj.GameObjectId:X} as being seen again." );
+					}
+					else
+					{
+						mNPCBalloonHistory.Add( balloonInfo );
+						DalamudAPI.PluginLog.Verbose( $"Added message info for Balloon on object 0x{obj.GameObjectId:X}." );
 					}
 				}
-				else if( DalamudAPI.Condition[ConditionFlag.BoundByDuty] ? delete_InInstance : delete_OutOfInstance )
+				else
 				{
-					mSpeechBubbleInfo.RemoveAt( i );
+					DalamudAPI.PluginLog.Debug( $"Object with ID 0x{obj:X} opened a balloon, but neither known balloon structure contained valid text." );
 				}
 			}
 		}
 
-		lock( mGameChatInfoLockObj )
+		//	Try to print any records that still need it.
+		foreach( var balloonMessage in mNPCBalloonHistory.Where( x => !x.HasBeenPrinted ) )
 		{
-			//	Clean up any expired records.
-			for( int i = mGameChatInfo.Count - 1; i >= 0; --i )
-			{
-				var timeSinceLastSeen = DateTimeOffset.UtcNow - mGameChatInfo[i].TimeLastSeen;
-				if( timeSinceLastSeen > TimeSpan.FromSeconds( 5 ) )
-				{
-					mGameChatInfo.RemoveAt( i );
-				}
-			}
-		}
-
-		lock( mSpeechBubbleInfoLockObj )
-		{
-			//	Try to print any records that are new.
-			for( int i = 0; i < mSpeechBubbleInfo.Count; ++i )
-			{
-				if( !mSpeechBubbleInfo[i].HasBeenPrinted )
-				{
-					NpcMessageInfo? matchingChatEntry = null;
-					lock( mGameChatInfoLockObj )
-					{
-						matchingChatEntry = mGameChatInfo.Find( x => x.Equals( mSpeechBubbleInfo[i], true ) );
-					}
-
-					if( matchingChatEntry is not null ) mSpeechBubbleInfo[i].FlagGameHandledPrinting();
-					else mSpeechBubbleInfo[i].PrintToChatLog();
-				}
-			}
-		}
-	}
-
-	private unsafe void LogBubbleInfo( AgentScreenLog* pThis, GameObject* pActor, byte* pString, byte param3, Int32 attachmentPoint )
-	{
-		//	Verbose Logging
-		if( DalamudAPI.PluginLog.MinimumLogLevel <= Serilog.Events.LogEventLevel.Verbose )
-		{
-			var actorName = pActor is not null ? SeString.Parse( pActor->Name )?.TextValue : "null speaker";
-			if( string.IsNullOrWhiteSpace( actorName ) ) actorName = "empty speaker";
-			var message = pString is not null ? MemoryHelper.ReadSeStringNullTerminated( (nint)pString )?.TextValue : "null message";
-			if( string.IsNullOrWhiteSpace( message ) ) message = "empty message";
-			string str = $"Call to OpenChatBubble( 0x{(nint)pThis:X}, 0x{(nint)pActor:X}, 0x{(nint)pString:X}, {param3}, {attachmentPoint} )\r\n";
-			str += $"{actorName}: {message}\r\n";
-			if( pActor is not null )
-			{
-				str += $"Kind - {pActor->ObjectKind}";
-				str += $", EntityID - {pActor->EntityId}";
-				str += $", BaseID - {pActor->BaseId}";
-				//	90% sure that we could just GetNameId() it without checking, but I would rather not risk it.
-				if( pActor->ObjectKind is ObjectKind.BattleNpc ) str += $", Name ID - {( (Character*)pActor )->NameId}";
-			}
-			DalamudAPI.PluginLog.Verbose( str );
-		}
-
-		//	Debug Logging
-		if( param3 > 0 && DalamudAPI.PluginLog.MinimumLogLevel <= Serilog.Events.LogEventLevel.Debug )
-		{
-			string str = $"Atypical chat bubble opened in territory {DalamudAPI.ClientState?.TerritoryType ?? 0}:\r\n";
-			str += $"AgentScreenLog*: 0x{(nint)pThis:X}\r\n";
-			str += "Actor Info: ";
-			if( pActor is null ) str += "Invalid!";
-			else
-			{
-				str += $"Kind - {pActor->ObjectKind}";
-				str += $", EntityID - {pActor->EntityId}";
-				str += $", Name - \"{SeString.Parse( pActor->Name )?.TextValue ?? "Invalid!"}\"";
-				str += $", BaseID - {pActor->BaseId}";
-				//	90% sure that we could just GetNameId() it without checking, but I would rather not risk it.
-				if( pActor->ObjectKind is ObjectKind.BattleNpc ) str += $", Name ID - {( (Character*)pActor )->NameId}";
-			}
-			str += $"\r\nparam3: {param3}";
-			str += $"\r\nAttachment Point: {attachmentPoint}";
-
-			DalamudAPI.PluginLog.Debug( str );
-
-			if( mConfiguration.DEBUG_NotifyOnUnknownParam3Bubble )
-			{
-				SeString chatStr = new();
-				chatStr.Payloads.Add( new UIForegroundPayload( 500 ) );
-				chatStr.Payloads.Add( new TextPayload( "Atypical chat bubble encountered; check the log for more information." ) );
-				chatStr.Payloads.Add( new UIForegroundPayload( 0 ) );
-
-				DalamudAPI.ChatGui.Print( new()
-				{
-					Message = chatStr,
-					Type = XivChatType.SystemMessage,
-				} );
-			}
+			balloonMessage.PrintToChatLog();
 		}
 	}
 
@@ -417,8 +377,7 @@ public sealed class Plugin : IDalamudPlugin
 
 	private void OnTerritoryChanged( UInt16 ID )
 	{
-		ClearSpeechBubbleHistory();
-		ClearGameChatHistory();
+		ClearNPCBalloonHistory();
 	}
 
 	private void OnLogin()
@@ -431,14 +390,9 @@ public sealed class Plugin : IDalamudPlugin
 		UITextColorSelector.CacheUITheme();
 	}
 
-	internal void ClearSpeechBubbleHistory()
+	internal void ClearNPCBalloonHistory()
 	{
-		lock( mSpeechBubbleInfoLockObj ) mSpeechBubbleInfo.Clear();
-	}
-
-	internal void ClearGameChatHistory()
-	{
-		lock( mGameChatInfoLockObj ) mGameChatInfo.Clear();
+		lock( mNPCBalloonHistoryLockObj ) mNPCBalloonHistory.Clear();
 	}
 
 	internal void ExportLocalizableStrings()
@@ -465,22 +419,7 @@ public sealed class Plugin : IDalamudPlugin
 
 	internal IEnumerable<NpcMessageInfo> DEBUG_GetSpeechBubbleInfo()
 	{
-		lock( mSpeechBubbleInfoLockObj ) return mSpeechBubbleInfo.ToList();
-	}
-
-	internal IEnumerable<NpcMessageInfo> DEBUG_GetGameChatInfo()
-	{
-		lock( mGameChatInfoLockObj ) return mGameChatInfo.ToList();
-	}
-
-	internal void DEBUG_InsertTestMessageAsBubble( SeString sender, SeString message )
-	{
-		lock( mSpeechBubbleInfoLockObj ) mSpeechBubbleInfo.Add( new( 0xE0000000, ObjectKind.None, 0, sender, message ) );
-	}
-
-	internal void DEBUG_InsertTestMessageAsChat( SeString sender, SeString message )
-	{
-		lock( mSpeechBubbleInfoLockObj ) mGameChatInfo.Add( new( 0xE0000000, ObjectKind.None, 0, sender, message ) );
+		lock( mNPCBalloonHistoryLockObj ) return mNPCBalloonHistory.ToList();
 	}
 
 	public static string Name => "Say What?";
@@ -503,17 +442,16 @@ public sealed class Plugin : IDalamudPlugin
 	internal static Plugin? Instance { get; private set; } = null;
 	internal static Configuration? CurrentConfiguration => Instance?.mConfiguration;
 
-	//	Open bubble param3 probably corresponds to the "slowly" column in the Balloon exd, and param4 is bone
-	//	index for attachment.  The actor is probably guaranteed to be a Character, but I am not 100% certain.
-	//	Is the string pointer just a char*, or is it a Utf8String instance?  Does it matter?
-	//***** TODO: Unlikely to be related, but check the fourth parameter when the message goes to both bubble and log.
-	private unsafe delegate void OpenBalloonDelegate( AgentScreenLog* pThis, GameObject* pActor, byte* pString, byte param3, Int32 attachmentPoint );
+	private unsafe delegate void OpenBalloonDelegate( AgentScreenLog* pAgentScreenLog, Character* pChara, byte* pString, bool param3, Int32 parentBoneId );
+	//private unsafe delegate void CloseBalloonDelegate( AgentScreenLog* pAgentScreenLog, Character* pChara );
 	private readonly Hook<OpenBalloonDelegate>? mOpenBalloonHook = null;
+	//private readonly Hook<CloseBalloonDelegate>? mCloseBalloonHook = null;
 
-	private readonly Lock mSpeechBubbleInfoLockObj = new();
-	private readonly Lock mGameChatInfoLockObj = new();
-	private readonly List<NpcMessageInfo> mSpeechBubbleInfo = new();
-	private readonly List<NpcMessageInfo> mGameChatInfo = new();
+	private readonly Lock mNPCBalloonHistoryLockObj = new();
+	private readonly List<NpcMessageInfo> mNPCBalloonHistory = new();
+
+	private readonly HashSet<GameObjectId> mObjectsWithOpenedBalloons = new();
+	//private readonly HashSet<GameObjectId> mObjectsWithClosedBalloons = new();
 
 	private readonly IDalamudPluginInterface mPluginInterface;
 }

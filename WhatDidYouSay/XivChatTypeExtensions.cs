@@ -1,8 +1,4 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 using Dalamud.Game.Text;
 
@@ -12,16 +8,16 @@ internal static class XivChatTypeExtensions
 {
     extension( XivChatType chatType )
     {
-		public XivChatType Channel => (XivChatType)( (ushort)chatType & 0x7F );
-		public XivChatTargetMask TargetMask => (XivChatTargetMask)( (ushort)chatType & 0x780 );
-        public XivChatSourceMask SourceMask => (XivChatSourceMask)( (ushort)chatType & 0x7800 );
+		public XivChatType Channel => (XivChatType)( (UInt16)chatType & 0x7F );
+		public XivChatTargetMask TargetMask => (XivChatTargetMask)( (UInt16)chatType & 0x780 );
+        public XivChatSourceMask SourceMask => (XivChatSourceMask)( (UInt16)chatType & 0x7800 );
 	}
 }
 
 // Target masks start at 0x80 and go as high as 0x780 (bits 7-10).
 #region Target Masks
 
-internal enum XivChatTargetMask : ushort
+internal enum XivChatTargetMask : UInt16
 {
     /// <summary>
     /// The target mask for the player.
@@ -84,7 +80,7 @@ internal enum XivChatTargetMask : ushort
 // Source masks start at 0x800 and go as high as 0x7800 (bits 11-14).
 #region Source Masks
 
-internal enum XivChatSourceMask : ushort
+internal enum XivChatSourceMask : UInt16
 {
 	/// <summary>
 	/// The source mask for the player.

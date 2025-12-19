@@ -8,6 +8,8 @@ v2:
 		-And for ones without a race/clan only to help when prioritizing npcs that cannot get a procedural name.
 	-Think about how we really want to not print for already printing balloons.  May want to hook the NPCYell stuff and flag that the next balloon opened within delay period should be ignored.
 	-Also check character balloon structs in the openballoon hook to get better information.
+	-Allow duplicate detection by object ID, base ID, or name, configurable by territory.
+	-Option to set announcements chat color.
 
 To Do:
 	-Switch to Dalamud window system.
