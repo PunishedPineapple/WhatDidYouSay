@@ -154,11 +154,11 @@ public sealed class Plugin : IDalamudPlugin
 	//***** TODO: Update to use newer command processing.
 	private void ProcessTextCommand( string command, string args )
 	{
-		if( args.ToLower() == SubcommandName_Debug.ToLower() )
+		if( args.Equals( SubcommandName_Debug, StringComparison.CurrentCultureIgnoreCase ) )
 		{
 			mUI.Window_Debug.Toggle();
 		}
-		else if( args.ToLower() == SubcommandName_Ban.ToLower() )
+		else if( args.Equals( SubcommandName_Ban, StringComparison.CurrentCultureIgnoreCase ) )
 		{
 			if( DalamudAPI.ClientState.TerritoryType > 0 )
 			{
@@ -179,7 +179,7 @@ public sealed class Plugin : IDalamudPlugin
 				}
 			}
 		}
-		else if( args.ToLower() == SubcommandName_Unban.ToLower() )
+		else if( args.Equals( SubcommandName_Unban, StringComparison.CurrentCultureIgnoreCase ) )
 		{
 			if( mConfiguration.mZoneConfigOverrideDict.ContainsKey( DalamudAPI.ClientState.TerritoryType ) )
 			{
