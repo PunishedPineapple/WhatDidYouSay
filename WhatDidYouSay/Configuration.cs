@@ -28,36 +28,45 @@ public sealed class Configuration : IPluginConfiguration
 	#region Options
 
 	//	Need a real backing field on the properties for use with ImGui.
-	public bool SuppressCommandLineResponses = false;
 	public bool KeepLineBreaks = false;
 	public bool RepeatsAllowed = true;
 	public bool RepeatsAllowedInInstance = true;
-	public bool IgnoreIfAlreadyInChat_NPCDialogue = false;
-	public bool IgnoreIfAlreadyInChat_NPCDialogueAnnouncements = true;
-	public bool RepeatDetectionIgnoresSenderID = true;
-	public bool RepeatDetectionIgnoresSenderID_InInstance = true;
 	public int TimeBeforeRepeatsAllowed_Sec = 30;
 	public int TimeBeforeRepeatsAllowedInInstance_Sec = 5;
 	public int MinTimeBetweenChatPrints_mSec = 500;
+	public float MinBalloonTime_Sec = 0f;
+	public float MinBalloonTimeInInstance_Sec = 0f;
+	public bool UseCuratedNames = true;
+	public bool UseProceduralNames = true;
 	public string DefaultSenderName = "NPC";
 
-	//	Backing field as an int to work with ImGui.
+	//	Backing fields as ints to work with ImGui.
 	internal int mChatChannelToUse = (int)XivChatType.NPCDialogueAnnouncements;
+	internal int mRepeatDetectionSenderComparisonType = (int)SenderComparisonType.ObjectID;
+	internal int mRepeatDetectionSenderComparisonType_InInstance = (int)SenderComparisonType.ObjectID;
+
 	public XivChatType ChatChannelToUse
 	{
 		get => (XivChatType)mChatChannelToUse;
 		set => mChatChannelToUse = (int)value;
 	}
 
-	public ushort NpcMessageTextColor = 0;
-	public ushort NpcMessageGlowColor = 0;
+	public SenderComparisonType RepeatDetectionSenderComparisonType
+	{
+		get => (SenderComparisonType)mRepeatDetectionSenderComparisonType;
+		set => mRepeatDetectionSenderComparisonType = (int)value;
+	}
 
-	public ushort SenderTextColor_Unknown = 0;
-	public ushort SenderGlowColor_Unknown = 0;
+	public SenderComparisonType RepeatDetectionSenderComparisonType_InInstance
+	{
+		get => (SenderComparisonType)mRepeatDetectionSenderComparisonType;
+		set => mRepeatDetectionSenderComparisonType = (int)value;
+	}
 
-	public bool IgnorePlayerCharacterBubbles = false;
+	public bool ShowNPCIDForUnnamedNPCs = false;
+	public bool ShowNPCIDInChatMessage = false;
 
-	public bool DEBUG_NotifyOnUnknownParam3Bubble = false;
+	public bool DEBUG_NotifyOnParam3High = false;
 
 	public SortedDictionary<UInt32, ZoneSpecificConfig> mZoneConfigOverrideDict = new();
 

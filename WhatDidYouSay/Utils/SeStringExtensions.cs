@@ -15,21 +15,23 @@ internal static class SeStringExtensions
 			return SeString.Parse( str.Encode() ) ?? SeString.Empty;
 		}
 
-		public SeString RemoveLineBreaks( bool onlyNewlinePayloads )
+		public SeString RemoveLineBreaks( bool onlyNewlinePayloads = false, bool replaceNBSP = true )
 		{
 			str = str.Duplicate();
-			str.RemoveLineBreaksInPlace( onlyNewlinePayloads );
+			str.RemoveLineBreaksInPlace( onlyNewlinePayloads, replaceNBSP );
 			return str;
 		}
 
 		//***** TODO: See how SeHyphens are used and whether we need to handle them.
-		public void RemoveLineBreaksInPlace( bool onlyNewlinePayloads )
+		public void RemoveLineBreaksInPlace( bool onlyNewlinePayloads = false, bool replaceNBSP = true )
 		{
 			for( int i = str.Payloads.Count - 1; i >= 0; --i )
 			{
-				if( !onlyNewlinePayloads && str.Payloads[i] is TextPayload textPayload )
+				if( str.Payloads[i] is TextPayload textPayload )
 				{
-					textPayload.Text.ReplaceLineEndings( " " );
+					if( !onlyNewlinePayloads ) textPayload.Text = textPayload.Text?.ReplaceLineEndings( " " );
+					if( replaceNBSP ) textPayload.Text = textPayload.Text?.Replace( '\xA0', ' ' );
+					textPayload.Text = textPayload.Text?.Replace( ".  ", ". " );	//	The game appears to use single spaces after stops, but spaces before line breaks are inconsistent.
 				}
 				else if( str.Payloads[i] is NewLinePayload newLinePayload )
 				{
@@ -43,8 +45,8 @@ internal static class SeStringExtensions
 							//***** TODO: I have no idea how hyphenation across lines and stops are done in other languages.
 							prevTextPayload.Text = prevTextPayload.Text.TrimEnd();
 							if( prevTextPayload.Text.EndsWith( '-' ) ) prevTextPayload.Text = prevTextPayload.Text[..^1];
-							else if( prevTextPayload.Text.EndsWith( '.' ) ) prevTextPayload.Text += ' ';    //***** TODO: Does the game use single or double spaces?
-							prevTextPayload.Text += ' ';
+							else if( prevTextPayload.Text.EndsWith( '.' ) ) prevTextPayload.Text += ' ';
+							else prevTextPayload.Text += ' ';
 							str.Payloads.RemoveAt( i );
 						}
 					}

@@ -1,31 +1,25 @@
 ﻿Bugs:
-	-Remove line breaks isn't always working.  Might need to add back in non-SeString line break handling as well.
+	-Figure out what is going on with the weird newline described in notes.
 
 v2:
-	-Setting to control minimum balloon time.
-	-Debug option to print NPC name with their row number.
-		-Also optionally only for ones without names (to help with any manual naming that people may want to do).
-		-And for ones without a race/clan only to help when prioritizing npcs that cannot get a procedural name.
-	-Think about how we really want to not print for already printing balloons.  May want to hook the NPCYell stuff and flag that the next balloon opened within delay period should be ignored.
-	-Also check character balloon structs in the openballoon hook to get better information.
 	-Allow duplicate detection by object ID, base ID, or name, configurable by territory.
 	-Option to set announcements chat color.
+	-Rewrite settings window.
+	-Check that all config options are implemented and exposed.
+	-Remove CS references once merged.
+
 
 To Do:
-	-Switch to Dalamud window system.
 	-Translations
 	-Make plugin icon scale better.
-	-Should we track the speaker object ID as well, and have an alternate comparison options?
-		-Gut feeling is no, more complexity that's unnecessary unless we run into an actual bug.
 	-See if we can make up names for unnamed NPCs, like "Lalafell 1", etc.
 		-When would we reset the numbering?
 		-What about mamool-ja and other non-playable races?  How are they even noted?
-		-Will probably want to start tracking the speakers ENpc ID if we do this.
-	-Allow adding color payloads to the speaker/text in the chat message that people can configure.
 
 	
-
 Notes:
 	-Testing of duplicate chat entry filtering can be accomplished easily in Haukke (Hard) with the first few NPCs up the stairs and down the hall.
 		-They talk in both speech bubbles, and in the NPC Dialogue (Announcements) chat channel.
 	-Strayborough has balloons that have param3 true.  Only place that I have seen it.
+	-Possibly rare/unique/problematic newline for an NPC at the Sanguine Sirens: "I smells me a man.  Where've you been, lass?"
+		-Might actually be a type of conditional payload.

@@ -37,7 +37,7 @@ internal sealed class Window_Debug: Window, IDisposable
 
 		ImGuiHelpers.ScaledDummy( ImGuiUtils.SectionSpacingSize );
 
-		ImGui.Checkbox( "Notify on non-zero param3", ref mConfiguration.DEBUG_NotifyOnUnknownParam3Bubble );
+		ImGui.Checkbox( "Notify on non-zero param3", ref mConfiguration.DEBUG_NotifyOnParam3High );
 
 		ImGuiHelpers.ScaledDummy( ImGuiUtils.SectionSpacingSize );
 
@@ -112,7 +112,7 @@ internal sealed class Window_Debug: Window, IDisposable
 
 		ImGui.Text( "Print test message to chat log:" );
 		SeString testSender = "Debug Sender";
-		SeString testMessage = $"Message Color: { mConfiguration.NpcMessageTextColor}, { mConfiguration.NpcMessageGlowColor}.  Sender Color: { mConfiguration.SenderTextColor_Unknown}, { mConfiguration.SenderGlowColor_Unknown}.";
+		SeString testMessage = $"Debug Test Message";// $"Message Color: { mConfiguration.NpcMessageTextColor}, { mConfiguration.NpcMessageGlowColor}.  Sender Color: { mConfiguration.SenderTextColor_Unknown}, { mConfiguration.SenderGlowColor_Unknown}.";
 		ImGui.SameLine();
 		if( ImGui.Button( "As Bubble" ) ) mPlugin.DEBUG_InsertTestMessage( testSender, testMessage );
 
@@ -127,9 +127,18 @@ internal sealed class Window_Debug: Window, IDisposable
 
 		foreach( var entry in mPlugin.DEBUG_GetSpeechBubbleInfo() )
 		{
-			if( ImGui.Button( $"P###btn-reprint-bubble{entry.GetHashCode()}" ) ) entry.PrintToChatLog();
+			string strInfo = string.Empty;
+			foreach( var payload in entry.Message.Payloads )
+			{
+				strInfo += $"[{payload.ToString()}] ";
+			}
+			if( ImGui.Button( $"Reprint###btn-reprint-bubble{entry.GetHashCode()}" ) ) entry.PrintToChatLog();
 			ImGui.SameLine();
 			ImGui.Text( entry.GetDebugString() );
+			ImGui.SameLine();
+			if( ImGui.Button( $"Copy Raw String###btn-copy-raw-string{entry.GetHashCode()}" ) ) ImGui.SetClipboardText( new( entry.Message.EncodeWithNullTerminator() ) );
+			ImGui.SameLine();
+			if( ImGui.Button( $"Copy String Info###btn-copy-string-info{entry.GetHashCode()}" ) ) ImGui.SetClipboardText( strInfo );
 		}
 	}
 

@@ -7,10 +7,10 @@ namespace WhatDidYouSay;
 public class ZoneSpecificConfig
 {
 	public bool DisableForZone = false;
-
 	public bool RepeatsAllowed = true;
-
 	public int TimeBeforeRepeatsAllowed_Sec = 10;
+	public float MinBalloonTime_Sec = 0f;
+
 	internal TimeSpan TimeBeforeRepeatsAllowed => TimeSpan.FromSeconds( TimeBeforeRepeatsAllowed_Sec );
 
 	public static string GetNiceNameForZone( UInt32 territoryType )

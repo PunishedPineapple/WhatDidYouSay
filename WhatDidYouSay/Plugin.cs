@@ -7,6 +7,7 @@ using System.Threading;
 using CheapLoc;
 
 using Dalamud.Game.ClientState.Conditions;
+using Dalamud.Game.ClientState.Objects.SubKinds;
 using Dalamud.Game.ClientState.Objects.Types;
 using Dalamud.Game.Command;
 using Dalamud.Game.Text.SeStringHandling;
@@ -28,7 +29,16 @@ public sealed class Plugin : IDalamudPlugin
 		//	API Access
 		pluginInterface.Create<DalamudAPI>();
 		mPluginInterface = pluginInterface;
-		
+
+		//	Custom ClientStructs
+		InteropGenerator.Runtime.Resolver.GetInstance.Setup(
+			DalamudAPI.SigScanner.SearchBase,
+			DalamudAPI.DataManager.GameData.Repositories["ffxiv"].Version,
+			new FileInfo( Path.Join( pluginInterface.ConfigDirectory.FullName, "SigCache.json" ) ) );
+		//InteropGenerator.Runtime.Resolver.GetInstance.Setup();
+		FFXIVClientStructs.Interop.Generated.Addresses.Register();
+		InteropGenerator.Runtime.Resolver.GetInstance.Resolve();
+
 		//	Configuration
 		mConfiguration = mPluginInterface.GetPluginConfig() as Configuration ?? new Configuration();
 		mConfiguration.Initialize( mPluginInterface );
@@ -65,19 +75,6 @@ public sealed class Plugin : IDalamudPlugin
 			{
 				throw new Exception( "Unable to find the specified function signature for AgentScreenLog::OpenBalloon." );
 			}
-
-			/*IntPtr fpCloseBalloon = DalamudAPI.SigScanner.ScanText( "E8 ?? ?? ?? ?? EB ?? 45 33 C0 48 8D 4E" );
-			if( fpCloseBalloon != IntPtr.Zero )
-			{
-				var addressInfo = Util.DescribeAddress( fpCloseBalloon );
-				DalamudAPI.PluginLog.Information( $"AgentScreenLog::CloseBalloon function found at {addressInfo}." );
-				mCloseBalloonHook = DalamudAPI.GameInteropProvider.HookFromAddress<CloseBalloonDelegate>( fpCloseBalloon, CloseBalloonDetour );
-				mCloseBalloonHook?.Enable();
-			}
-			else
-			{
-				throw new Exception( "Unable to find the specified function signature for AgentScreenLog::CloseBalloon." );
-			}*/
 		}
 
 		//	UI Initialization
@@ -98,8 +95,7 @@ public sealed class Plugin : IDalamudPlugin
 		mOpenBalloonHook?.Disable();
 		mOpenBalloonHook?.Dispose();
 
-		//mCloseBalloonHook?.Disable();
-		//mCloseBalloonHook?.Dispose();
+		mConfiguration.Save();
 
 		DalamudAPI.Framework.Update -= OnGameFrameworkUpdate;
 		DalamudAPI.ClientState.TerritoryChanged -= OnTerritoryChanged;
@@ -218,13 +214,12 @@ public sealed class Plugin : IDalamudPlugin
 			DalamudAPI.PluginLog.Verbose( $"OpenBalloon( 0x{(nint)pAgentScreenLog:X}, 0x{(nint)pChara:X}, 0x{(nint)pString:X}, {param3}, {parentBoneId} )" );
 
 			if( pChara is null ) DalamudAPI.PluginLog.Warning( $"OpenBalloon called with a null Character*!  This should never happen." );
-			else if( pChara->IsCharacter() )
+			else
 			{
 				var objectID = pChara->GetGameObjectId();
 				mObjectsWithOpenedBalloons.Add( objectID );
-				DalamudAPI.PluginLog.Debug( $"OpenBalloon called for character with object ID 0x{objectID:X} (at 0x{(nint)pChara:X}) on AgentScreenLog at 0x{(nint)pAgentScreenLog:X}." );
+				DalamudAPI.PluginLog.Debug( $"OpenBalloon called for character with object ID 0x{(ulong)objectID:X} (at 0x{(nint)pChara:X})." );
 			}
-			else DalamudAPI.PluginLog.Warning( $"OpenBalloon called with an object that is not a Character!  This should never happen." );
 		}
 		catch( Exception e )
 		{
@@ -236,35 +231,11 @@ public sealed class Plugin : IDalamudPlugin
 		}
 	}
 
-	/*private unsafe void CloseBalloonDetour( AgentScreenLog* pAgentScreenLog, Character* pChara )
-	{
-		try
-		{
-			DalamudAPI.PluginLog.Verbose( $"CloseBalloon( 0x{(nint)pAgentScreenLog:X}, 0x{(nint)pChara:X} )" );
-
-			if( pChara is null ) DalamudAPI.PluginLog.Information( $"CloseBalloon called with a null Character*!" );
-			else if( pChara->IsCharacter() )
-			{
-				var objectID = pChara->GetGameObjectId();
-				mObjectsWithClosedBalloons.Add( objectID );
-				DalamudAPI.PluginLog.Debug( $"CloseBalloon called for character with object ID 0x{objectID:X} (at 0x{(nint)pChara:X}) on AgentScreenLog at 0x{(nint)pAgentScreenLog:X}." );
-			}
-			else DalamudAPI.PluginLog.Warning( $"CloseBalloon called with an object that is not a Character!  This should never happen." );
-		}
-		catch( Exception e )
-		{
-			DalamudAPI.PluginLog.Error( $"Exception in \"{nameof( CloseBalloonDetour )}\":\r\n{e}" );
-		}
-		finally
-		{
-			mCloseBalloonHook?.Original( pAgentScreenLog, pChara );
-		}
-	}*/
-
 	private unsafe void OnGameFrameworkUpdate( IFramework framework )
 	{
 		if( !DalamudAPI.ClientState.IsLoggedIn ) return;
 
+		//***** TODO: Move to be a config helper.
 		//	Figure out how long we should track messages for repeats.
 		TimeSpan messageInfoLifetime = TimeSpan.MaxValue;
 		if( mConfiguration.mZoneConfigOverrideDict?.TryGetValue( DalamudAPI.ClientState.TerritoryType, out ZoneSpecificConfig? zoneConfig ) == true &&
@@ -280,34 +251,78 @@ public sealed class Plugin : IDalamudPlugin
 		{
 			messageInfoLifetime = mConfiguration.TimeBeforeRepeatsAllowed;
 		}
-		
+
+		//***** TODO: Move to be a config helper.
+		float minBalloonTime_Sec = 0f;
+		if( mConfiguration.mZoneConfigOverrideDict?.TryGetValue( DalamudAPI.ClientState.TerritoryType, out zoneConfig ) == true )
+		{
+			minBalloonTime_Sec = zoneConfig.MinBalloonTime_Sec;
+		}
+		else if( DalamudAPI.Condition[ConditionFlag.BoundByDuty] )
+		{
+			minBalloonTime_Sec = mConfiguration.MinBalloonTimeInInstance_Sec;
+		}
+		else
+		{
+			minBalloonTime_Sec = mConfiguration.MinBalloonTime_Sec;
+		}
+
 		//	Clean up any tracked message info that has expired.
 		mNPCBalloonHistory.RemoveAll( x => x.IsExpired( messageInfoLifetime ) );
 
-		//	Handle any new balloons.
-		var objectsWithNewBalloons = DalamudAPI.ObjectTable.Where( x => mObjectsWithOpenedBalloons.Contains( x.GameObjectId ) );
+		//	Find any objects with new balloons in the object table.
+		var objectsWithNewBalloons = DalamudAPI.ObjectTable.Where( x =>
+			x.IsValid() &&
+			x.Address != 0 &&
+			mObjectsWithOpenedBalloons.Contains( x.GameObjectId ) ).ToList();
+
+		//	Finished with this, so clean up for next frame.
+		mObjectsWithOpenedBalloons.Clear();
+
+		//	Start tracking any new messages.
 		foreach( var obj in objectsWithNewBalloons )
 		{
-			if( obj.IsValid() && obj.Address != 0 && obj is ICharacter chara )
+			if( obj is ICharacter chara )
 			{
+				//	Skip PC balloons (if we ever come across any).
+				if( chara is IPlayerCharacter )
+				{
+					DalamudAPI.PluginLog.Verbose( $"Skipping balloon on player character object 0x{obj.GameObjectId:X}." );
+					continue;
+				}
+
+				//	Find the currently in-use balloon text.
 				SeString? balloonText = null;
 				var pChara = (Character*)chara.Address;
-				if( !pChara->YellBalloon.Text.IsEmpty )
+				bool gameHandledPrinting = false;
+				if( pChara->YellBalloon.Text.Length > 0 )
 				{
-					//***** TODO: Set the PlayTime for the balloon if below configured minimum.
-					//***** TODO: If this is has the logmessage flag set, we're finished.
+					//	Set the PlayTime for the balloon if below configured the minimum.
+					if( pChara->YellBalloon.PlayTimer < minBalloonTime_Sec ) pChara->YellBalloon.PlayTimer = minBalloonTime_Sec;
+
+					//	Keep track of whether this is a game-logged balloon.
+					gameHandledPrinting = pChara->YellBalloon.Flags.HasFlag( FFXIVClientStructs.FFXIV.Client.Game.NPCYellBalloonFlags.PrintToLog );
+
+					//	Grab the balloon text.
 					balloonText = SeString.Parse( pChara->YellBalloon.Text );
-					DalamudAPI.PluginLog.Verbose( $"Found valid text for NPCYellBalloon on object 0x{obj.GameObjectId:X}: \"{balloonText.TextValue}\"." );
+					DalamudAPI.PluginLog.Verbose( $"Found valid text for NPCYellBalloon on object 0x{obj.GameObjectId:X}: \"{balloonText.TextValue}\" {( gameHandledPrinting ? " (handled by game)" : string.Empty )}." );
 				}
-				else if( !pChara->Balloon.Text.IsEmpty )
+				else if( pChara->Balloon.Text.Length > 0 )
 				{
-					//***** TODO: Set the PlayTime for the balloon if below configured minimum.
+					//	Set the PlayTime for the balloon if below configured the minimum.
+					if( pChara->Balloon.PlayTimer < minBalloonTime_Sec ) pChara->Balloon.PlayTimer = minBalloonTime_Sec;
+
+					//	Grab the balloon text.
 					balloonText = SeString.Parse( pChara->Balloon.Text );
 					DalamudAPI.PluginLog.Verbose( $"Found valid text for Balloon on object 0x{obj.GameObjectId:X}: \"{balloonText.TextValue}\"." );
 				}
+				else
+				{
+					DalamudAPI.PluginLog.Information( $"Character object 0x{obj.GameObjectId:X} was passed to OpenBalloon, but does not have valid information in any of the known balloon structs." );
+				}
 
 				//	Create message info for this balloon if possible, and add or update as appropriate.
-				if( balloonText is not null )
+				if( balloonText is not null && balloonText.Payloads.Count > 0 )
 				{
 					var balloonInfo = new NpcMessageInfo()
 					{
@@ -319,8 +334,10 @@ public sealed class Plugin : IDalamudPlugin
 						Message = balloonText,
 					};
 
+					if( gameHandledPrinting ) balloonInfo.FlagGameHandledPrinting();
+
 					//***** TODO: Use the configured sender comparison type.
-					var match = mNPCBalloonHistory.FirstOrDefault( x => x.Equals( balloonInfo, false, true, NpcMessageInfo.SenderComparisonType.ObjectID ) );
+					var match = mNPCBalloonHistory.FirstOrDefault( x => x.Equals( balloonInfo, true, SenderComparisonType.ObjectID ) );
 					if( match is not null )
 					{
 						match.FlagMessageSeenAgain();
@@ -334,8 +351,12 @@ public sealed class Plugin : IDalamudPlugin
 				}
 				else
 				{
-					DalamudAPI.PluginLog.Debug( $"Object with ID 0x{obj:X} opened a balloon, but neither known balloon structure contained valid text." );
+					DalamudAPI.PluginLog.Debug( $"Object with ID 0x{obj:X} opened a balloon, but it contained no valid payloads." );
 				}
+			}
+			else
+			{
+				DalamudAPI.PluginLog.Warning( $"OpenBalloon was called with an object ({obj:X} ({obj.ObjectKind})) that is not a Character.  This should never happen." );
 			}
 		}
 
@@ -345,23 +366,6 @@ public sealed class Plugin : IDalamudPlugin
 			balloonMessage.PrintToChatLog();
 		}
 	}
-
-	/*private UInt16 DetermineMessageTextColor()
-	{
-		//***** TODO: Find/add missing announcements color config if it exists.
-		if( mConfiguration.NpcMessageTextColor > 0 )
-		{
-			return mConfiguration.NpcMessageTextColor;
-		}
-		else if( DalamudAPI.GameConfig.TryGet( Dalamud.Game.Config.UiConfigOption.ColorNpcSay, out uint color ) )
-		{
-			return (UInt16)color;
-		}
-		else
-		{
-			return 0;
-		}
-	}*/
 
 	internal static bool IsValidCustomSenderName( SeString? str )
 	{
@@ -404,6 +408,8 @@ public sealed class Plugin : IDalamudPlugin
 			var folderPath = mPluginInterface.IsDev ?
 				mPluginInterface.AssemblyLocation.DirectoryName :
 				mPluginInterface.GetPluginLocDirectory();
+
+			DalamudAPI.PluginLog.Information( $"Attempting to export localizable strings to \"{folderPath}\"" );
 
 			if( !string.IsNullOrWhiteSpace( folderPath ) )
 			{
@@ -461,15 +467,12 @@ public sealed class Plugin : IDalamudPlugin
 	internal static Configuration? CurrentConfiguration => Instance?.mConfiguration;
 
 	private unsafe delegate void OpenBalloonDelegate( AgentScreenLog* pAgentScreenLog, Character* pChara, byte* pString, bool param3, Int32 parentBoneId );
-	//private unsafe delegate void CloseBalloonDelegate( AgentScreenLog* pAgentScreenLog, Character* pChara );
 	private readonly Hook<OpenBalloonDelegate>? mOpenBalloonHook = null;
-	//private readonly Hook<CloseBalloonDelegate>? mCloseBalloonHook = null;
 
 	private readonly Lock mNPCBalloonHistoryLockObj = new();
 	private readonly List<NpcMessageInfo> mNPCBalloonHistory = new();
 
 	private readonly HashSet<GameObjectId> mObjectsWithOpenedBalloons = new();
-	//private readonly HashSet<GameObjectId> mObjectsWithClosedBalloons = new();
 
 	private readonly IDalamudPluginInterface mPluginInterface;
 }

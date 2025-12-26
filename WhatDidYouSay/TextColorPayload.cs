@@ -7,10 +7,7 @@ using Dalamud.Game.Text.SeStringHandling;
 
 namespace WhatDidYouSay;
 
-/// <summary>
-/// An SeString Payload that allows text to have a specific color. The color selected will be determined by the
-/// <see cref="Lumina.Excel.Sheets.UIColor.Dark"/> theme's coloring, regardless of the active theme.
-/// </summary>
+//	What gets used in the chat log to set the color of a log entry.  May just be a log entry payload that happens to specify color.
 internal class TextColorPayload : Payload
 {
 	private UInt32 mColor;
@@ -74,6 +71,5 @@ internal class TextColorPayload : Payload
 			DalamudAPI.PluginLog.Debug( "Unexpected length in color payload." );
 			mColor = 0;
 		}
-
 	}
 }

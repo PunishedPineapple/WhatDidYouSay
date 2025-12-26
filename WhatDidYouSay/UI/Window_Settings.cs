@@ -22,21 +22,22 @@ internal sealed class Window_Settings : Window, IDisposable
 		mPlugin = plugin;
 		mPluginUI = pluginUI;
 		mConfiguration = configuration;
-
-		var UIColors = DalamudAPI.DataManager.GetExcelSheet<UIColor>()?.ToArray();
-
-		mNpcNameColorSelector_Known = new( UIColors, "NpcNameColorSelector_Known" );
-		mNpcNameColorSelector_Generated = new( UIColors, "NpcNameColorSelector_Generated" );
-		mNpcNameColorSelector_Unknown = new( UIColors, "NpcNameColorSelector_Unknown" );
-		mNpcMessageColorSelector = new( UIColors, "NpcMessageColorSelector" );
 	}
 
 	public void Dispose()
 	{
-		mNpcNameColorSelector_Known?.Dispose();
-		mNpcNameColorSelector_Generated?.Dispose();
-		mNpcNameColorSelector_Unknown?.Dispose();
-		mNpcMessageColorSelector?.Dispose();
+	}
+
+	public override void OnOpen()  
+	{
+		mDefaultSenderNameConfigString_Transient = mConfiguration.DefaultSenderName;
+		base.OnOpen();
+	}
+
+	public override void OnClose()
+	{
+		mConfiguration.Save();
+		base.OnClose();
 	}
 
 	public override void Draw()
@@ -75,8 +76,10 @@ internal sealed class Window_Settings : Window, IDisposable
 		ImGui.Checkbox( Loc.Localize( "Config Option: Keep Line Breaks", "Keep line breaks." ) + "###Keep line breaks.", ref mConfiguration.KeepLineBreaks );
 
 		ImGui.Spacing();
+		ImGui.Checkbox( Loc.Localize( "Config Option: Use Curated NPC Names", "Use curated NPC names." ) + "###UseCuratedNPCNamesCheckbox", ref mConfiguration.UseCuratedNames );
+		ImGui.Checkbox( Loc.Localize( "Config Option: Use Procedural NPC Names", "Use automatically-generated NPC names." ) + "###UseProceduralNPCNamesCheckbox", ref mConfiguration.UseProceduralNames );
 		ImGui.Text( Loc.Localize( "Config Option: Default Speaker Name", "Default Speaker Name: " ) );
-		ImGuiUtils.HelpMarker( Loc.Localize( "Help: Default Speaker Name", "The default name to show in the chat log for messages from NPCs that lack names." ) );
+		ImGuiUtils.HelpMarker( Loc.Localize( "Help: Default Speaker Name", "The default name to show in the chat log for messages from NPCs that otherwise lack names." ) );
 		ImGui.InputText( "###Default Speaker Name Input", ref mDefaultSenderNameConfigString_Transient, 20 );
 		if( Plugin.IsValidCustomSenderName( mDefaultSenderNameConfigString_Transient ) )
 		{
@@ -91,15 +94,6 @@ internal sealed class Window_Settings : Window, IDisposable
 
 		ImGui.Spacing();
 
-		ImGui.Text( Loc.Localize( "Config Section: Prevent Duplicate Messages", "Prevent duplicate messages from:" ) );
-		ImGuiUtils.HelpMarker( Loc.Localize( "Help: Prevent Duplicate Messages", "In some rare cases, the base game already prints speech bubbles to the chat log.  These settings make the plugin skip outputting to chat in those cases.  Which option(s) you want depends upon how your chat filters are configured, but generally you should check the box that matches the output channel selected above." ) );
-		ImGui.Indent();
-		ImGui.Checkbox( GetNPCDialogueChannelName() + "###Prevent Duplicate Messages (NPC Dialogue)", ref mConfiguration.IgnoreIfAlreadyInChat_NPCDialogue );
-		ImGui.Checkbox( GetNPCDialogueAnnouncementsChannelName() + "###Prevent Duplicate Messages (NPC Dialogue (Announcements))", ref mConfiguration.IgnoreIfAlreadyInChat_NPCDialogueAnnouncements );
-		ImGui.Unindent();
-
-		ImGui.Spacing();
-
 		ImGui.Text( Loc.Localize( "Config Section: Overworld", "Overworld:" ) );
 		ImGui.Indent();
 		ImGui.Checkbox( Loc.Localize( "Config Option: Allow repeated speech to print to log.", "Allow repeated speech to print to log." ) + "###Allow repeated speech to print to log (overworld).", ref mConfiguration.RepeatsAllowed );
@@ -109,7 +103,9 @@ internal sealed class Window_Settings : Window, IDisposable
 			ImGui.Text( Loc.Localize( "Config Option: Time before repeated speech can be printed again.", "Time before repeats are allowed:" ) );
 			ImGui.SliderInt( "###Time before the same speech can be printed again (overworld).", ref mConfiguration.TimeBeforeRepeatsAllowed_Sec, 1, 600, "%ds" );
 		}
-		ImGui.Checkbox( Loc.Localize( "Config Option: Repeat detection ignores sender ID.", "Treat identical messages from different entities as repeats." ) + "###Repeat detection ignores sender ID.", ref mConfiguration.RepeatDetectionIgnoresSenderID );
+		ImGui.Text( Loc.Localize( "Config Option: Minimum balloon lifetime.", "Minimum bubble lifetime:" ) );
+		ImGui.SliderFloat( "###MinBalloonTime_Overworld", ref mConfiguration.MinBalloonTime_Sec, 0f, 15f, "%.1fs", ImGuiSliderFlags.AlwaysClamp );
+		//ImGui.Checkbox( Loc.Localize( "Config Option: Repeat detection ignores sender ID.", "Treat identical messages from different entities as repeats." ) + "###Repeat detection ignores sender ID.", ref mConfiguration.RepeatDetectionIgnoresSenderID );
 		ImGui.Unindent();
 
 		ImGui.Spacing();
@@ -123,18 +119,10 @@ internal sealed class Window_Settings : Window, IDisposable
 			ImGui.Text( Loc.Localize( "Config Option: Time before repeated speech can be printed again.", "Time before repeats are allowed:" ) );
 			ImGui.SliderInt( "###Time before the same speech can be printed again (in instance).", ref mConfiguration.TimeBeforeRepeatsAllowedInInstance_Sec, 1, 600, "%ds" );
 		}
-		ImGui.Checkbox( Loc.Localize( "Config Option: Repeat detection ignores sender ID.", "Treat identical messages from different entities as repeats." ) + "###Repeat detection ignores sender ID.", ref mConfiguration.RepeatDetectionIgnoresSenderID_InInstance );
+		ImGui.Text( Loc.Localize( "Config Option: Minimum balloon lifetime.", "Minimum bubble lifetime:" ) );
+		ImGui.SliderFloat( "###MinBalloonTime_Instance", ref mConfiguration.MinBalloonTimeInInstance_Sec, 0f, 15f, "%.1fs", ImGuiSliderFlags.AlwaysClamp );
+		//ImGui.Checkbox( Loc.Localize( "Config Option: Repeat detection ignores sender ID.", "Treat identical messages from different entities as repeats." ) + "###Repeat detection ignores sender ID.", ref mConfiguration.RepeatDetectionIgnoresSenderID_InInstance );
 		ImGui.Unindent();
-
-		ImGui.Spacing();
-
-		ImGui.Text( Loc.Localize( "Config Option: Log Message Color", "Message Colors:" ) );
-		mNpcMessageColorSelector?.Draw( ref mConfiguration.NpcMessageTextColor, ref mConfiguration.NpcMessageGlowColor, true, true );
-
-		ImGui.Spacing();
-
-		ImGui.Text( Loc.Localize( "Config Option: Log Message Color", "Speaker Name Colors:" ) );
-		mNpcNameColorSelector_Unknown?.Draw( ref mConfiguration.SenderTextColor_Unknown, ref mConfiguration.SenderGlowColor_Unknown, true, true );
 
 		ImGui.Spacing();
 
@@ -147,22 +135,9 @@ internal sealed class Window_Settings : Window, IDisposable
 
 		if( ImGui.TreeNode( Loc.Localize( "Config Section: Advanced Options", "Advanced Options" ) + "###AdvancedOptionsHeader" ) )
 		{
-			ImGui.Checkbox( Loc.Localize( "Config Option: Ignore Player Character Bubbles", "Ignore player character bubbles" ) + "###IgnorePcBubblesCheckbox", ref mConfiguration.IgnorePlayerCharacterBubbles );
-			ImGuiUtils.HelpMarker( Loc.Localize( "Help: Ignore Player Character Bubbles", "This does NOT affect the game's built in player speech bubbles.  This option currently only exists in the event of potential plugin compatbility issues." ) );
+			ImGui.Checkbox( Loc.Localize( "Config Option: Use NPC IDs as Names", "Use IDs as names for unnamed NPCs." ) + "###UseNPCIDsAsNamesCheckbox", ref mConfiguration.ShowNPCIDForUnnamedNPCs );
+			ImGui.Checkbox( Loc.Localize( "Config Option: Append NPC IDs to Messages", "Append IDs to messages." ) + "###AppendNPCIDsToMessagesCheckbox", ref mConfiguration.ShowNPCIDInChatMessage );
 			ImGui.TreePop();
-		}
-
-		ImGuiHelpers.ScaledDummy( ImGuiUtils.SectionSpacingSize );
-
-		if( ImGui.Button( Loc.Localize( "Button: Save", "Save" ) + "###Save Button" ) )
-		{
-			mConfiguration.Save();
-		}
-		ImGui.SameLine();
-		if( ImGui.Button( Loc.Localize( "Button: Save and Close", "Save and Close" ) + "###Save and Close" ) )
-		{
-			mConfiguration.Save();
-			Toggle();
 		}
 	}
 
@@ -195,11 +170,6 @@ internal sealed class Window_Settings : Window, IDisposable
 	private readonly Plugin mPlugin;
 	private readonly PluginUI mPluginUI;
 	private readonly Configuration mConfiguration;
-
-	private readonly UITextColorSelector mNpcNameColorSelector_Known = null;
-	private readonly UITextColorSelector mNpcNameColorSelector_Generated = null;
-	private readonly UITextColorSelector mNpcNameColorSelector_Unknown = null;
-	private readonly UITextColorSelector mNpcMessageColorSelector = null;
 
 	//	Field to hold UI input for validation before committing to the plugin's config.
 	private string mDefaultSenderNameConfigString_Transient = "NPC";
