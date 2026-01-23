@@ -16,12 +16,12 @@ public sealed class Configuration : IPluginConfiguration
 
 	public void Initialize( IDalamudPluginInterface pluginInterface ) => mPluginInterface = pluginInterface;
 
-	public void Save() => mPluginInterface.SavePluginConfig( this );
+	public void Save() => mPluginInterface?.SavePluginConfig( this );
 
 	public int Version { get; set; } = 0;
 
 	[NonSerialized]
-	private IDalamudPluginInterface mPluginInterface;
+	private IDalamudPluginInterface? mPluginInterface;
 
 	#endregion
 
@@ -42,8 +42,10 @@ public sealed class Configuration : IPluginConfiguration
 
 	//	Backing fields as ints to work with ImGui.
 	internal int mChatChannelToUse = (int)XivChatType.NPCDialogueAnnouncements;
-	internal int mRepeatDetectionSenderComparisonType = (int)SenderComparisonType.ObjectID;
-	internal int mRepeatDetectionSenderComparisonType_InInstance = (int)SenderComparisonType.ObjectID;
+	internal int mRepeatDetectionSenderComparisonType_ENpc = (int)SenderComparisonType.BaseID;
+	internal int mRepeatDetectionSenderComparisonType_ENpc_InInstance = (int)SenderComparisonType.BaseID;
+	internal int mRepeatDetectionSenderComparisonType_BNpc = (int)SenderComparisonType.NameID_FallbackBaseID;
+	internal int mRepeatDetectionSenderComparisonType_BNpc_InInstance = (int)SenderComparisonType.NameID_FallbackBaseID;
 
 	public XivChatType ChatChannelToUse
 	{
@@ -51,22 +53,34 @@ public sealed class Configuration : IPluginConfiguration
 		set => mChatChannelToUse = (int)value;
 	}
 
-	public SenderComparisonType RepeatDetectionSenderComparisonType
+	public SenderComparisonType RepeatDetectionSenderComparisonType_ENpc
 	{
-		get => (SenderComparisonType)mRepeatDetectionSenderComparisonType;
-		set => mRepeatDetectionSenderComparisonType = (int)value;
+		get => (SenderComparisonType)mRepeatDetectionSenderComparisonType_ENpc;
+		set => mRepeatDetectionSenderComparisonType_ENpc = (int)value;
 	}
 
-	public SenderComparisonType RepeatDetectionSenderComparisonType_InInstance
+	public SenderComparisonType RepeatDetectionSenderComparisonType_ENpc_InInstance
 	{
-		get => (SenderComparisonType)mRepeatDetectionSenderComparisonType;
-		set => mRepeatDetectionSenderComparisonType = (int)value;
+		get => (SenderComparisonType)mRepeatDetectionSenderComparisonType_ENpc_InInstance;
+		set => mRepeatDetectionSenderComparisonType_ENpc_InInstance = (int)value;
 	}
 
-	public bool ShowNPCIDForUnnamedNPCs = false;
-	public bool ShowNPCIDInChatMessage = false;
+	public SenderComparisonType RepeatDetectionSenderComparisonType_BNpc
+	{
+		get => (SenderComparisonType)mRepeatDetectionSenderComparisonType_BNpc;
+		set => mRepeatDetectionSenderComparisonType_BNpc = (int)value;
+	}
 
-	public bool DEBUG_NotifyOnParam3High = false;
+	public SenderComparisonType RepeatDetectionSenderComparisonType_BNpc_InInstance
+	{
+		get => (SenderComparisonType)mRepeatDetectionSenderComparisonType_BNpc_InInstance;
+		set => mRepeatDetectionSenderComparisonType_BNpc_InInstance = (int)value;
+	}
+
+	public bool ShowNPCIDInChatMessage_ForRealName = false;
+	public bool ShowNPCIDInChatMessage_ForCuratedName = false;
+	public bool ShowNPCIDInChatMessage_ForProceduralName = false;
+	public bool ShowNPCIDInChatMessage_ForNoName = false;
 
 	public SortedDictionary<UInt32, ZoneSpecificConfig> mZoneConfigOverrideDict = new();
 

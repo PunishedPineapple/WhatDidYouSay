@@ -29,10 +29,6 @@ public sealed class PluginUI : IDisposable
 		Window_Settings?.Dispose();
 		Window_Settings_ZoneOverride?.Dispose();
 		Window_Debug?.Dispose();
-
-		Window_Settings = null;
-		Window_Settings_ZoneOverride = null;
-		Window_Debug = null;
 	}
 
 	public void Draw() => mWindowSystem.Draw();

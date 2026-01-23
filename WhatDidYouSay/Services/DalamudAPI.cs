@@ -1,5 +1,4 @@
-﻿using Dalamud.Game;
-using Dalamud.IoC;
+﻿using Dalamud.IoC;
 using Dalamud.Plugin.Services;
 
 namespace WhatDidYouSay;

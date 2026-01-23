@@ -38,7 +38,7 @@ internal class TextColorPayload : Payload
 
 		if( !isTerminator ) bytes.AddRange( colorBytes );
 		else bytes.Add( 0xEC );
-		
+
 		bytes.Add( END_BYTE );
 
 		return bytes.ToArray();

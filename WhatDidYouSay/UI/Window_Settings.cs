@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Linq;
 
 using CheapLoc;
 
@@ -7,8 +6,6 @@ using Dalamud.Bindings.ImGui;
 using Dalamud.Game.Text;
 using Dalamud.Interface.Utility;
 using Dalamud.Interface.Windowing;
-
-using Lumina.Excel.Sheets;
 
 namespace WhatDidYouSay;
 
@@ -28,7 +25,7 @@ internal sealed class Window_Settings : Window, IDisposable
 	{
 	}
 
-	public override void OnOpen()  
+	public override void OnOpen()
 	{
 		mDefaultSenderNameConfigString_Transient = mConfiguration.DefaultSenderName;
 		base.OnOpen();
@@ -44,14 +41,14 @@ internal sealed class Window_Settings : Window, IDisposable
 	{
 		ImGui.Text( Loc.Localize( "Config Option: Log message channel.", "Chat log channel for output:" ) );
 		ImGuiUtils.HelpMarker( Loc.Localize( "Help: Log message channel.", "Make sure that the channel you select here is turned on in your character's log filter settings, or you won't see any messages." ) );
-		
+
 		string currentChannelName = mConfiguration.ChatChannelToUse switch
 		{
 			XivChatType.NPCDialogue => GetNPCDialogueChannelName(),
 			XivChatType.NPCDialogueAnnouncements => GetNPCDialogueAnnouncementsChannelName(),
 			_ => "INVALID CHANNEL",
 		};
-		
+
 		if( ImGui.BeginCombo( "###Chat Channel Dropdown", currentChannelName ) )
 		{
 			if( ImGui.Selectable( GetNPCDialogueChannelName() ) )
@@ -135,8 +132,13 @@ internal sealed class Window_Settings : Window, IDisposable
 
 		if( ImGui.TreeNode( Loc.Localize( "Config Section: Advanced Options", "Advanced Options" ) + "###AdvancedOptionsHeader" ) )
 		{
-			ImGui.Checkbox( Loc.Localize( "Config Option: Use NPC IDs as Names", "Use IDs as names for unnamed NPCs." ) + "###UseNPCIDsAsNamesCheckbox", ref mConfiguration.ShowNPCIDForUnnamedNPCs );
-			ImGui.Checkbox( Loc.Localize( "Config Option: Append NPC IDs to Messages", "Append IDs to messages." ) + "###AppendNPCIDsToMessagesCheckbox", ref mConfiguration.ShowNPCIDInChatMessage );
+			ImGui.Text( Loc.Localize( "Config Option: Append NPC IDs to Messages", "Append IDs to messages for NPCs with:" ) );
+			ImGui.Indent();
+			ImGui.Checkbox( Loc.Localize( "Config Option: Append NPC IDs to Messages - Real Names", "Real Names" ) + "###AppendNPCIDsToMessagesCheckbox_RealNames", ref mConfiguration.ShowNPCIDInChatMessage_ForRealName );
+			ImGui.Checkbox( Loc.Localize( "Config Option: Append NPC IDs to Messages - Curated Names", "Curated Names" ) + "###AppendNPCIDsToMessagesCheckbox_CuratedNames", ref mConfiguration.ShowNPCIDInChatMessage_ForCuratedName );
+			ImGui.Checkbox( Loc.Localize( "Config Option: Append NPC IDs to Messages - Real Names", "Procedural Names" ) + "###AppendNPCIDsToMessagesCheckbox_ProceduralNames", ref mConfiguration.ShowNPCIDInChatMessage_ForProceduralName );
+			ImGui.Checkbox( Loc.Localize( "Config Option: Append NPC IDs to Messages - Real Names", "No Names" ) + "###AppendNPCIDsToMessagesCheckbox_NoNames", ref mConfiguration.ShowNPCIDInChatMessage_ForNoName );
+			ImGui.Unindent();
 			ImGui.TreePop();
 		}
 	}

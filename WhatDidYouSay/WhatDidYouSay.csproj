@@ -3,7 +3,6 @@
 	<!-- Compiler Settings -->
 	<PropertyGroup>
 		<TargetFramework>net10.0-windows</TargetFramework>
-		<LangVersion>preview</LangVersion>
 		<Platforms>x64</Platforms>
 		<Nullable>enable</Nullable>
 		<AllowUnsafeBlocks>true</AllowUnsafeBlocks>
@@ -17,9 +16,21 @@
 		<Version>2.0.0.0</Version>
 		<Authors>PunishedPineapple</Authors>
 		<Product />
-		<Copyright>Copyright © PunishedPineapple 2022-2025</Copyright>
-		<PackageProjectUrl>https://github.com/PunishedPineapple/WhatDidYouSay</PackageProjectUrl>
+		<Copyright>Copyright © PunishedPineapple 2022-2026</Copyright>
 		<RepositoryUrl>https://github.com/PunishedPineapple/WhatDidYouSay</RepositoryUrl>
+		<PackageProjectUrl>$(RepositoryUrl)</PackageProjectUrl>
+	</PropertyGroup>
+
+	<!-- Dalamud Plugin Manifest -->
+	<PropertyGroup>
+		<Author>$(Authors)</Author>
+		<Name>Say What?</Name>
+		<Punchline>Persistent NPC Flavor Text</Punchline>
+		<Description>Prints NPC speech bubbles to the chat log.  Please check the plugin settings and your chat log filters to make sure that they are compatible with each other.</Description>
+		<RepoUrl>$(RepositoryUrl)</RepoUrl>
+		<IconUrl>$(RepositoryUrl)/raw/main/docs/Images/icon.png</IconUrl>
+		<ImageUrls>$(RepositoryUrl)/raw/main/docs/Images/image1.png;$(RepositoryUrl)/raw/main/docs/Images/image2.png</ImageUrls>
+		<Tags>Chat;NPC;Bubble;Balloon</Tags>
 	</PropertyGroup>
 
 	<!-- Dependencies -->
@@ -46,7 +57,6 @@
 
 	<!-- Dalamud Plugin Packaging -->
 	<ItemGroup>
-		<Content Include="$(ProjectName).json" />
 		<None Include="DalamudPackager.targets" />
 	</ItemGroup>
 

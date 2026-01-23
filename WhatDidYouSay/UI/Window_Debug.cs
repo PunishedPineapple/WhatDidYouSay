@@ -10,11 +10,9 @@ using Dalamud.Interface.Windowing;
 using FFXIVClientStructs.FFXIV.Client.System.Framework;
 using FFXIVClientStructs.FFXIV.Component.GUI;
 
-using Lumina.Excel.Sheets;
-
 namespace WhatDidYouSay;
 
-internal sealed class Window_Debug: Window, IDisposable
+internal sealed class Window_Debug : Window, IDisposable
 {
 	public Window_Debug( Plugin plugin, PluginUI pluginUI, Configuration configuration ) :
 		base( Loc.Localize( "Window Title: Debug Data", "\"Say What?\" Debug Data" ) + "###\"Say What?\" Debug Data" )
@@ -34,10 +32,6 @@ internal sealed class Window_Debug: Window, IDisposable
 		{
 			mPlugin.ExportLocalizableStrings();
 		}
-
-		ImGuiHelpers.ScaledDummy( ImGuiUtils.SectionSpacingSize );
-
-		ImGui.Checkbox( "Notify on non-zero param3", ref mConfiguration.DEBUG_NotifyOnParam3High );
 
 		ImGuiHelpers.ScaledDummy( ImGuiUtils.SectionSpacingSize );
 
@@ -83,7 +77,7 @@ internal sealed class Window_Debug: Window, IDisposable
 		uint? channelColor = DalamudAPI.GameConfig.TryGet( Dalamud.Game.Config.UiConfigOption.ColorNpcSay, out uint color ) ? color : null;
 		//if( channelColor.HasValue ) channelColor = channelColor.Value.ByteSwap();
 
-		var UIColorSheet = DalamudAPI.DataManager.GetExcelSheet<UIColor>();
+		/*var UIColorSheet = DalamudAPI.DataManager.GetExcelSheet<UIColor>();
 		uint? matchingUIColorIndex = null;
 
 		foreach( var row in UIColorSheet )
@@ -107,7 +101,7 @@ internal sealed class Window_Debug: Window, IDisposable
 
 		ImGui.Text( $"NPC Dialog Channel Color: 0x{channelColor:X8}" );
 		ImGui.Text( $"Found Matching Index: {matchingUIColorIndex}" );
-
+		*/
 		ImGuiHelpers.ScaledDummy( ImGuiUtils.SectionSpacingSize );
 
 		ImGui.Text( "Print test message to chat log:" );
@@ -132,7 +126,7 @@ internal sealed class Window_Debug: Window, IDisposable
 			{
 				strInfo += $"[{payload.ToString()}] ";
 			}
-			if( ImGui.Button( $"Reprint###btn-reprint-bubble{entry.GetHashCode()}" ) ) entry.PrintToChatLog();
+			if( ImGui.Button( $"Reprint###btn-reprint-bubble{entry.GetHashCode()}" ) ) entry.PrintToChatLog( mPlugin.CustomNameDatabase, mConfiguration );
 			ImGui.SameLine();
 			ImGui.Text( entry.GetDebugString() );
 			ImGui.SameLine();

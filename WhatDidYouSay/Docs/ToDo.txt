@@ -7,6 +7,7 @@ v2:
 	-Rewrite settings window.
 	-Check that all config options are implemented and exposed.
 	-Remove CS references once merged.
+	-Add a repeat type that does not update last seen time; just blocks out reprinting for the repeat time.
 
 
 To Do:
@@ -20,6 +21,7 @@ To Do:
 Notes:
 	-Testing of duplicate chat entry filtering can be accomplished easily in Haukke (Hard) with the first few NPCs up the stairs and down the hall.
 		-They talk in both speech bubbles, and in the NPC Dialogue (Announcements) chat channel.
-	-Strayborough has balloons that have param3 true.  Only place that I have seen it.
+	-Strayborough has balloons that have param3 (soft open) true.  Only place that I have seen it.
 	-Possibly rare/unique/problematic newline for an NPC at the Sanguine Sirens: "I smells me a man.  Where've you been, lass?"
 		-Might actually be a type of conditional payload.
+	-Repeating BNpc balloon at end of Qarn hard after killing boss.

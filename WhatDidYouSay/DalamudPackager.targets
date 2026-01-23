@@ -1,19 +1,61 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project>
-    <Target Name="PackagePluginDebug" AfterTargets="Build" Condition="'$(Configuration)' == 'Debug'">
-        <DalamudPackager
-            ProjectDir="$(ProjectDir)"
-            OutputPath="$(OutputPath)"
-            AssemblyName="$(AssemblyName)"
-            Exclude="latest.zip;previous.zip;loc.log;$(ProjectName).pdb;$(ProjectName).deps.json;$(ProjectName)_Localizable.json"
-            MakeZip="false"/>
-    </Target>
-    <Target Name="PackagePluginRelease" AfterTargets="Build" Condition="'$(Configuration)' == 'Release'">
-        <DalamudPackager
-            ProjectDir="$(ProjectDir)"
-            OutputPath="$(OutputPath)"
-            AssemblyName="$(AssemblyName)"
-            Exclude="latest.zip;previous.zip;loc.log;$(ProjectName).pdb;$(ProjectName).deps.json;$(ProjectName)_Localizable.json"
-            MakeZip="true"/>
-    </Target>
+	<Target Name="PackagePluginDebug" AfterTargets="Build" Condition="'$(Configuration)' == 'Debug'">
+		<DalamudPackager
+			ProjectDir="$(ProjectDir)"
+			OutputPath="$(OutputPath)"
+			AssemblyName="$(AssemblyName)"
+			Author="$(Author)"
+			Name="$(Name)"
+			InternalName="$(InternalName)"
+			AssemblyVersion="$(AssemblyVersion)"
+			MinimumDalamudVersion="$(MinimumDalamudVersion)"
+			Punchline="$(Punchline)"
+			Description="$(Description)"
+			ApplicableVersion="$(ApplicableVersion)"
+			RepoUrl="$(RepoUrl)"
+			Tags="$(Tags)"
+			CategoryTags="$(CategoryTags)"
+			DalamudApiLevel="$(DalamudApiLevel)"
+			LoadRequiredState="$(LoadRequiredState)"
+			LoadSync="$(LoadSync)"
+			CanUnloadAsync="$(CanUnloadAsync)"
+			LoadPriority="$(LoadPriority)"
+			ImageUrls="$(ImageUrls)"
+			IconUrl="$(IconUrl)"
+			Changelog="$(Changelog)"
+			AcceptsFeedback="$(AcceptsFeedback)"
+			FeedbackMessage="$(FeedbackMessage)"
+			Exclude="latest.zip;previous.zip;loc.log;$(ProjectName).pdb;$(ProjectName).deps.json;$(ProjectName)_Localizable.json"
+			MakeZip="false"/>
+	</Target>
+	<Target Name="PackagePluginRelease" AfterTargets="Build" Condition="'$(Configuration)' == 'Release'">
+		<DalamudPackager
+			ProjectDir="$(ProjectDir)"
+			OutputPath="$(OutputPath)"
+			AssemblyName="$(AssemblyName)"
+			Author="$(Author)"
+			Name="$(Name)"
+			InternalName="$(InternalName)"
+			AssemblyVersion="$(AssemblyVersion)"
+			MinimumDalamudVersion="$(MinimumDalamudVersion)"
+			Punchline="$(Punchline)"
+			Description="$(Description)"
+			ApplicableVersion="$(ApplicableVersion)"
+			RepoUrl="$(RepoUrl)"
+			Tags="$(Tags)"
+			CategoryTags="$(CategoryTags)"
+			DalamudApiLevel="$(DalamudApiLevel)"
+			LoadRequiredState="$(LoadRequiredState)"
+			LoadSync="$(LoadSync)"
+			CanUnloadAsync="$(CanUnloadAsync)"
+			LoadPriority="$(LoadPriority)"
+			ImageUrls="$(ImageUrls)"
+			IconUrl="$(IconUrl)"
+			Changelog="$(Changelog)"
+			AcceptsFeedback="$(AcceptsFeedback)"
+			FeedbackMessage="$(FeedbackMessage)"
+			Exclude="latest.zip;previous.zip;loc.log;$(ProjectName).pdb;$(ProjectName).deps.json;$(ProjectName)_Localizable.json"
+			MakeZip="true"/>
+	</Target>
 </Project>

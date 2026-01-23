@@ -21,18 +21,18 @@ internal class NpcMessageInfo : IEquatable<NpcMessageInfo>
 	public NpcMessageInfo( GameObjectId speakerObjectID, ObjectKind speakerKind, UInt32 speakerBaseID, UInt32 speakerNameID, SeString speakerName, SeString message ) :
 		this()
 	{
-		SpeakerObjectID = speakerObjectID;
+		SpeakerObjectId = speakerObjectID;
 		SpeakerKind = speakerKind;
-		SpeakerBaseID = speakerBaseID;
-		SpeakerNameID = speakerNameID;
+		SpeakerBaseId = speakerBaseID;
+		SpeakerNameId = speakerNameID;
 		SpeakerName = speakerName;
 		Message = message;
 	}
 
-	public GameObjectId SpeakerObjectID { get; init; } = 0xE0000000;
+	public GameObjectId SpeakerObjectId { get; init; } = 0xE0000000;
 	public ObjectKind SpeakerKind { get; init; } = ObjectKind.None;
-	public UInt32 SpeakerBaseID { get; init; } = 0;
-	public UInt32 SpeakerNameID { get; init; } = 0;
+	public UInt32 SpeakerBaseId { get; init; } = 0;
+	public UInt32 SpeakerNameId { get; init; } = 0;
 	public SeString SpeakerName { get; init; } = SeString.Empty;
 	public SeString Message { get; init; } = SeString.Empty;
 	public DateTimeOffset TimeFirstSeen { get; protected set; }
@@ -42,26 +42,29 @@ internal class NpcMessageInfo : IEquatable<NpcMessageInfo>
 
 	public void FlagMessageSeenAgain() => TimeLastSeen = DateTimeOffset.UtcNow;
 	public void FlagGameHandledPrinting() => HasBeenPrinted = true;
-	public bool PrintToChatLog()
+	public bool PrintToChatLog( NpcNameDatabase customNameData, Configuration currentConfig )
 	{
 		//	Rate limit this as a last resort in case we messed up.
 		var currentTime = DateTimeOffset.UtcNow;
-		if( currentTime - LastTimeChatPrinted >= Plugin.CurrentConfiguration?.MinTimeBetweenChatPrints )
+		if( currentTime - LastTimeChatPrinted >= currentConfig.MinTimeBetweenChatPrints )
 		{
 			//	Make a copy so that we can do some formatting without poisoning the history.
 			var msg = Message.Duplicate();
 
 			//	Remove line breaks if desired.
-			if( !Plugin.CurrentConfiguration.KeepLineBreaks )
+			if( !currentConfig.KeepLineBreaks )
 			{
 				msg.RemoveLineBreaksInPlace();
 			}
 
 			//	Get as reasonable a speaker name we can.
-			var speakerName = GetBestAvailableSenderName();
+			var speakerName = GetBestAvailableSenderName( customNameData, currentConfig, out var hasRealName, out var hasCuratedName, out var hasProceduralName );
 
-			//	Append the object base ID if desired.
-			if( Plugin.CurrentConfiguration?.ShowNPCIDInChatMessage == true )
+			//	Append the object ID(s) if desired.
+			if( currentConfig.ShowNPCIDInChatMessage_ForRealName && hasRealName ||
+				currentConfig.ShowNPCIDInChatMessage_ForCuratedName && hasCuratedName ||
+				currentConfig.ShowNPCIDInChatMessage_ForProceduralName && hasProceduralName ||
+				currentConfig.ShowNPCIDInChatMessage_ForNoName && !( hasRealName || hasCuratedName || hasProceduralName ) )
 			{
 				string kindStr = SpeakerKind switch
 				{
@@ -70,14 +73,20 @@ internal class NpcMessageInfo : IEquatable<NpcMessageInfo>
 					_ => "Unk",
 				};
 
+				string nameIdStr = SpeakerKind switch
+				{
+					ObjectKind.BattleNpc => $", {SpeakerNameId}",
+					_ => string.Empty,
+				};
+
 				msg.Payloads.Add( new UIForegroundPayload( 4 ) );
-				msg.Payloads.Add( new TextPayload( $" ({kindStr} {SpeakerBaseID})" ) );
+				msg.Payloads.Add( new TextPayload( $" ({kindStr} {SpeakerBaseId}{nameIdStr})" ) );
 				msg.Payloads.Add( new UIForegroundPayload( 0 ) );
 			}
 
 			DalamudAPI.ChatGui.Print( new()
 			{
-				Type = Plugin.CurrentConfiguration.ChatChannelToUse,
+				Type = currentConfig.ChatChannelToUse,
 				Name = speakerName,
 				Message = msg,
 			} );
@@ -93,56 +102,55 @@ internal class NpcMessageInfo : IEquatable<NpcMessageInfo>
 		}
 	}
 
-	protected SeString GetBestAvailableSenderName()
+	protected SeString GetBestAvailableSenderName( NpcNameDatabase customNameData, Configuration currentConfig, out bool hasRealName, out bool hasCuratedName, out bool hasProceduralName )
 	{
+		hasRealName = false;
+		hasCuratedName = false;
+		hasProceduralName = false;
+
 		//	Game-given name always takes precedence.
 		if( !string.IsNullOrWhiteSpace( SpeakerName?.TextValue ) )
 		{
+			hasRealName = true;
 			return SpeakerName;
 		}
 
-		//	Custom and debug names.
+		//	Custom and procedural names.
 		if( SpeakerKind == ObjectKind.BattleNpc )
 		{
-			if( Plugin.CurrentConfiguration?.UseCuratedNames == true )
+			if( currentConfig.UseCuratedNames &&
+				customNameData.TryGetBNpcName( SpeakerBaseId, SpeakerNameId, out var customName ) &&
+				customName.Length > 0 )
 			{
-				//***** TODO: Custom BNpc name.
-				return "TEMP CUSTOM BNPC";
+				hasCuratedName = true;
+				return customName;
 			}
-			else if( Plugin.CurrentConfiguration?.UseProceduralNames == true )
+			else if( currentConfig.UseProceduralNames &&
+				NpcNameGenerator.TryGenerateNameFromBNpcId( SpeakerBaseId, out var computedName ) )
 			{
-				//***** TODO: Procedural Name Generation if BNpcBase has customize information for player races
-				return "TEMP PROC BNPC";
-			}
-			else if( Plugin.CurrentConfiguration?.ShowNPCIDForUnnamedNPCs == true )
-			{
-				return $"BNpc {SpeakerBaseID}";
+				hasProceduralName = true;
+				return computedName;
 			}
 		}
 		else if( SpeakerKind == ObjectKind.EventNpc )
 		{
-			if( Plugin.CurrentConfiguration?.UseCuratedNames == true )
+			if( currentConfig.UseCuratedNames &&
+				customNameData.TryGetENpcName( SpeakerBaseId, out var customName ) &&
+				customName.Length > 0 )
 			{
-				//***** TODO: Custom ENpc name.
-				return "TEMP CUSTOM ENPC";
+				hasCuratedName = true;
+				return customName;
 			}
-			else if( Plugin.CurrentConfiguration?.UseProceduralNames == true )
+			else if( currentConfig.UseProceduralNames &&
+				NpcNameGenerator.TryGenerateNameFromENpcId( SpeakerBaseId, out var computedName ) )
 			{
-				//***** TODO: Procedural Name Generation if ENpcBase has customize information for player races
-				return "TEMP PROC ENPC";
+				hasProceduralName = true;
+				return computedName;
 			}
-			else if( Plugin.CurrentConfiguration?.ShowNPCIDForUnnamedNPCs == true )
-			{
-				return $"ENpc {SpeakerBaseID}";
-			}
-		}
-		else if( Plugin.CurrentConfiguration?.ShowNPCIDForUnnamedNPCs == true )
-		{
-			return $"Unk 0x{SpeakerBaseID:X}";
 		}
 
 		//	Configured default name.
-		if( Plugin.CurrentConfiguration?.DefaultSenderName is string defaultSender &&
+		if( currentConfig.DefaultSenderName is string defaultSender &&
 			Plugin.IsValidCustomSenderName( defaultSender ) )
 		{
 			return defaultSender;
@@ -156,7 +164,7 @@ internal class NpcMessageInfo : IEquatable<NpcMessageInfo>
 
 	internal string GetDebugString()
 	{
-		string str = $"Speaker ID: 0x{(ulong)SpeakerObjectID:X}, Speaker Base ID: {SpeakerBaseID}, Speaker Name ID: {SpeakerNameID}, Speaker Kind: {SpeakerKind}";
+		string str = $"Speaker ID: 0x{(ulong)SpeakerObjectId:X}, Speaker Base ID: {SpeakerBaseId}, Speaker Name ID: {SpeakerNameId}, Speaker Kind: {SpeakerKind}";
 		str += $"\r\n[{TimeFirstSeen.ToLocalTime():HH:mm:ss}]{SpeakerName.TextValue}: {Message.TextValue}";
 		str += $"\r\nLast Seen: {TimeLastSeen.ToLocalTime():HH:mm:ss} ";
 		return str;
@@ -165,7 +173,7 @@ internal class NpcMessageInfo : IEquatable<NpcMessageInfo>
 	public bool Equals( NpcMessageInfo? rhs, bool ignoreTimeLastSeen = true, SenderComparisonType senderComparison = SenderComparisonType.ObjectID )
 	{
 		//***** TODO: It is conceivable that we might have messages that differ only in non-text payloads (i.e., a repeat with italics for emphasis).
-		return	rhs is not null &&
+		return rhs is not null &&
 				( ignoreTimeLastSeen || TimeLastSeen == rhs.TimeLastSeen ) &&
 				SenderEquals( rhs, senderComparison ) &&
 				Message.TextValue.Equals( rhs.Message.TextValue );
@@ -173,14 +181,22 @@ internal class NpcMessageInfo : IEquatable<NpcMessageInfo>
 
 	public bool SenderEquals( NpcMessageInfo? rhs, SenderComparisonType senderComparison = SenderComparisonType.ObjectID )
 	{
-		return rhs is not null && senderComparison switch
+		if( rhs is null ||
+			senderComparison == SenderComparisonType.NeverEqual ||
+			SpeakerKind != rhs.SpeakerKind )
 		{
-			SenderComparisonType.ObjectID => SpeakerObjectID.Equals( rhs.SpeakerObjectID ),
-			SenderComparisonType.BaseID => SpeakerBaseID.Equals( rhs.SpeakerBaseID ),
-			SenderComparisonType.NameID => SpeakerNameID.Equals( rhs.SpeakerNameID ),
-			SenderComparisonType.NameText => SpeakerName.TextValue.Equals( rhs.SpeakerName.TextValue ),
-			SenderComparisonType.Ignore => true,
-			_ => SpeakerObjectID.Equals( rhs.SpeakerObjectID ),
+			return false;
+		}
+
+		return senderComparison switch
+		{
+			SenderComparisonType.ObjectID => SpeakerObjectId.Equals( rhs.SpeakerObjectId ),
+			SenderComparisonType.BaseID => SpeakerBaseId.Equals( rhs.SpeakerBaseId ),
+			SenderComparisonType.NameID_FallbackBaseID => SpeakerNameId == 0 || rhs.SpeakerNameId == 0 ? SenderEquals( rhs, SenderComparisonType.BaseID ) : SpeakerNameId.Equals( rhs.SpeakerNameId ),
+			SenderComparisonType.NameID_FallbackText => SpeakerNameId == 0 || rhs.SpeakerNameId == 0 ? SenderEquals( rhs, SenderComparisonType.NameText ) : SpeakerNameId.Equals( rhs.SpeakerNameId ),
+			SenderComparisonType.NameText => SpeakerName.TextValue.Length == 0 && rhs.SpeakerName.TextValue.Length == 0 ? SenderEquals( rhs, SenderComparisonType.BaseID ) : SpeakerName.TextValue.Equals( rhs.SpeakerName.TextValue ),
+			SenderComparisonType.NeverEqual => false,
+			_ => SpeakerObjectId.Equals( rhs.SpeakerObjectId ),
 		};
 	}
 
@@ -188,5 +204,5 @@ internal class NpcMessageInfo : IEquatable<NpcMessageInfo>
 	public static bool operator !=( NpcMessageInfo? lhs, NpcMessageInfo? rhs ) => !( lhs == rhs );
 	public bool Equals( NpcMessageInfo? rhs ) => this.Equals( rhs, true, SenderComparisonType.ObjectID );
 	public override bool Equals( object? obj ) => obj is NpcMessageInfo rhs && this.Equals( rhs );
-	public override int GetHashCode() => HashCode.Combine( SpeakerObjectID.GetHashCode(), Message?.GetHashCode() );
+	public override int GetHashCode() => HashCode.Combine( SpeakerObjectId.GetHashCode(), Message?.GetHashCode() );
 }
