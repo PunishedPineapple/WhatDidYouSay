@@ -7,9 +7,18 @@ namespace WhatDidYouSay;
 public class ZoneSpecificConfig
 {
 	public bool DisableForZone = false;
+	public bool InheritRepeatsAllowed = true;
 	public bool RepeatsAllowed = true;
+	public bool InheritTimeBeforeRepeatsAllowed = true;
 	public int TimeBeforeRepeatsAllowed_Sec = 10;
+	public bool InheritMinBalloonTime = true;
 	public float MinBalloonTime_Sec = 0f;
+	public bool InheritSenderComparisonType_ENpc = true;
+	public SenderComparisonType SenderComparisonType_ENpc = SenderComparisonType.BaseId;
+	public bool InheritSenderComparisonType_BNpc = true;
+	public SenderComparisonType SenderComparisonType_BNpc = SenderComparisonType.NameId_FallbackBaseId;
+
+	//***** TODO: Enum helpers.
 
 	internal TimeSpan TimeBeforeRepeatsAllowed => TimeSpan.FromSeconds( TimeBeforeRepeatsAllowed_Sec );
 

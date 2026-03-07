@@ -40,15 +40,6 @@
 			<HintPath>$(DalamudLibPath)CheapLoc.dll</HintPath>
 		</Reference>
 	</ItemGroup>
-	
-	<!-- ***** TEMP: CUSTOM CS ***** -->
-	<PropertyGroup>
-		<Use_Dalamud_FFXIVClientStructs>false</Use_Dalamud_FFXIVClientStructs>
-	</PropertyGroup>
-	<ItemGroup>
-		<ProjectReference Include="..\..\..\FFXIVClientStructs\FFXIVClientStructs\FFXIVClientStructs.csproj" Private="True" />
-		<ProjectReference Include="..\..\..\FFXIVClientStructs\InteropGenerator.Runtime\InteropGenerator.Runtime.csproj" Private="True" />
-	</ItemGroup>
 
 	<!-- Bundled Resource Files -->
 	<ItemGroup>

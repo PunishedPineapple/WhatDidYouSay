@@ -7,6 +7,7 @@ using Dalamud.Game.Text.SeStringHandling;
 using Dalamud.Interface.Utility;
 using Dalamud.Interface.Windowing;
 
+using FFXIVClientStructs.FFXIV.Client.Game.UI;
 using FFXIVClientStructs.FFXIV.Client.System.Framework;
 using FFXIVClientStructs.FFXIV.Component.GUI;
 
@@ -40,12 +41,14 @@ internal sealed class Window_Debug : Window, IDisposable
 		var pUI3DModule = pUIModule != null ? pUIModule->GetUI3DModule() : null;
 		var pAgentModule = pUIModule != null ? pUIModule->GetAgentModule() : null;
 		var pAgentScreenLog = pAgentModule != null ? pAgentModule->GetAgentScreenLog() : null;
+		var pNpcYell = NpcYell.Instance();
 
 		ImGuiUtils.CopyableAddress( "Framework", pFramework );
 		ImGuiUtils.CopyableAddress( "UIModule", pUIModule );
 		ImGuiUtils.CopyableAddress( "UI3DModule", pUI3DModule );
 		ImGuiUtils.CopyableAddress( "AgentModule", pAgentModule );
 		ImGuiUtils.CopyableAddress( "AgentScreenLog", pAgentScreenLog );
+		ImGuiUtils.CopyableAddress( "NpcYell", pNpcYell );
 
 		ImGuiHelpers.ScaledDummy( ImGuiUtils.SectionSpacingSize );
 
@@ -59,6 +62,7 @@ internal sealed class Window_Debug : Window, IDisposable
 
 		ImGui.Checkbox( "Show all agent addresses", ref mShowAllAgentAddresses );
 
+		//***** TODO: Move to testing plugin.
 		if( mShowAllAgentAddresses )
 		{
 			if( ImGui.BeginChild( "###AgentInfoChildWindow", new( 500, 200 ), true, ImGuiWindowFlags.ChildWindow ) )
@@ -73,6 +77,8 @@ internal sealed class Window_Debug : Window, IDisposable
 
 			ImGui.EndChild();
 		}
+
+		ImGuiHelpers.ScaledDummy( ImGuiUtils.SectionSpacingSize );
 
 		uint? channelColor = DalamudAPI.GameConfig.TryGet( Dalamud.Game.Config.UiConfigOption.ColorNpcSay, out uint color ) ? color : null;
 		//if( channelColor.HasValue ) channelColor = channelColor.Value.ByteSwap();

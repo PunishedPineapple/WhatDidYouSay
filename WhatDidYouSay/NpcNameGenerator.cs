@@ -13,7 +13,7 @@ internal static partial class NpcNameGenerator
 		CurrentRegion = GetRaceNameRegionForTerritory( territoryType );
 	}
 
-	public static bool TryGenerateNameFromBNpcId( UInt32 BNpcBaseId, out string name, RaceNameKind raceKind = RaceNameKind.Tribe, bool reducedGender = false )
+	public static bool TryGenerateNameFromBNpcId( UInt32 BNpcBaseId, out string name, RaceNameKind raceKind = RaceNameKind.Tribe, bool reducedGender = false, bool ignoreRegion = false )
 	{
 		name = string.Empty;
 
@@ -25,13 +25,13 @@ internal static partial class NpcNameGenerator
 			var gender = row.BNpcCustomize.Value.Gender;
 			var headEquipId = row.NpcEquip.IsValid ? row.NpcEquip.Value.ModelHead : 0;
 
-			return TryGenerateNameFromCustomizeData( race, tribe, gender, out name, raceKind, reducedGender, headEquipId );
+			return TryGenerateNameFromCustomizeData( race, tribe, gender, out name, raceKind, reducedGender, headEquipId, ignoreRegion, RaceNameRegion.Default );
 		}
 
 		return false;
 	}
 
-	public static bool TryGenerateNameFromENpcId( UInt32 ENpcBaseId, out string name, RaceNameKind raceKind = RaceNameKind.Tribe, bool reducedGender = false )
+	public static bool TryGenerateNameFromENpcId( UInt32 ENpcBaseId, out string name, RaceNameKind raceKind = RaceNameKind.Tribe, bool reducedGender = false, bool ignoreRegion = false )
 	{
 		name = string.Empty;
 
@@ -43,15 +43,26 @@ internal static partial class NpcNameGenerator
 			var gender = row.Gender;
 			var headEquipId = row.ModelHead;
 
-			return TryGenerateNameFromCustomizeData( race, tribe, gender, out name, raceKind, reducedGender, headEquipId );
+			return TryGenerateNameFromCustomizeData( race, tribe, gender, out name, raceKind, reducedGender, headEquipId, ignoreRegion, RaceNameRegion.Default );
 		}
 
 		return false;
 	}
 
-	private static bool TryGenerateNameFromCustomizeData( UInt32 race, UInt32 tribe, byte gender, out string name, RaceNameKind raceKind = RaceNameKind.Tribe, bool reducedGender = false, UInt32 headEquipId = 0 )
+	internal static bool TryGenerateSampleName( out string name, RaceNameKind raceKind, bool reducedGender, bool ignoreRegion )
 	{
 		name = string.Empty;
+		return TryGenerateNameFromCustomizeData(
+			2, 4, 1, out name,
+			raceKind, reducedGender, 0,
+			ignoreRegion,
+			ignoreRegion ? RaceNameRegion.Default : RaceNameRegion.TheFirst );
+	}
+
+	private static bool TryGenerateNameFromCustomizeData( UInt32 race, UInt32 tribe, byte gender, out string name, RaceNameKind raceKind = RaceNameKind.Tribe, bool reducedGender = false, UInt32 headEquipId = 0, bool overrideRegion = false, RaceNameRegion forcedRegion = RaceNameRegion.Default)
+	{
+		name = string.Empty;
+		var regionToUse = overrideRegion ? forcedRegion : CurrentRegion;
 
 		//***** TODO: Is there a more reliable way to distunguish Pelu from regular Hyur?
 		if( mPeluHeadEquipIds.Contains( headEquipId ) )
@@ -68,13 +79,13 @@ internal static partial class NpcNameGenerator
 			_ => mNpcNames_En,
 		};
 
-		if( (int)CurrentRegion < 0 || (int)CurrentRegion >= currentLangNpcNames.Length )
+		if( (int)regionToUse < 0 || (int)regionToUse >= currentLangNpcNames.Length )
 		{
-			DalamudAPI.PluginLog.Warning( $"Unexpected region \"{CurrentRegion}\" in {nameof( TryGenerateNameFromENpcId )}." );
-			CurrentRegion = RaceNameRegion.Default;
+			DalamudAPI.PluginLog.Warning( $"Unexpected region \"{regionToUse}\" in {nameof( TryGenerateNameFromCustomizeData )}." );
+			regionToUse = RaceNameRegion.Default;
 		}
 
-		var namesForRegion = currentLangNpcNames[(int)CurrentRegion];
+		var namesForRegion = currentLangNpcNames[(int)regionToUse];
 		if( tribe >= namesForRegion.Length ) return false;
 		var names = namesForRegion[tribe];
 		if( names is null ) return false;

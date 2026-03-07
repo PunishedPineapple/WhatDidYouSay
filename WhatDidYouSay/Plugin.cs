@@ -21,6 +21,8 @@ using FFXIVClientStructs.FFXIV.Client.Game.Object;
 using FFXIVClientStructs.FFXIV.Client.Game.UI;
 using FFXIVClientStructs.FFXIV.Client.UI.Agent;
 
+using static Dalamud.Interface.Utility.Raii.ImRaii;
+
 namespace WhatDidYouSay;
 
 public sealed class Plugin : IDalamudPlugin
@@ -30,15 +32,6 @@ public sealed class Plugin : IDalamudPlugin
 		//	API Access
 		pluginInterface.Create<DalamudAPI>();
 		mPluginInterface = pluginInterface;
-
-		//***** TODO: Custom ClientStructs; remove before releasing plugin.
-		InteropGenerator.Runtime.Resolver.GetInstance.Setup(
-			DalamudAPI.SigScanner.SearchBase,
-			DalamudAPI.DataManager.GameData.Repositories["ffxiv"].Version,
-			new FileInfo( Path.Join( pluginInterface.ConfigDirectory.FullName, "SigCache.json" ) ) );
-		//InteropGenerator.Runtime.Resolver.GetInstance.Setup();
-		FFXIVClientStructs.Interop.Generated.Addresses.Register();
-		InteropGenerator.Runtime.Resolver.GetInstance.Resolve();
 
 		//	Configuration
 		mConfiguration = mPluginInterface.GetPluginConfig() as Configuration ?? new Configuration();
@@ -81,21 +74,10 @@ public sealed class Plugin : IDalamudPlugin
 			{
 				throw new Exception( "Unable to find the specified function signature for NpcYell::HandleYell." );
 			}
-
-			//***** TODO: Remove before release.
-			nint fpNpcYellUpdate = DalamudAPI.SigScanner.ScanText( "40 53 55 57 48 83 EC ?? 48 8B 59 ?? 33 ED" );
-			if( fpNpcYellUpdate != IntPtr.Zero )
-			{
-				var addressInfo = Util.DescribeAddress( fpNpcYellUpdate );
-				DalamudAPI.PluginLog.Information( $"NpcYell::Update function found at {addressInfo}." );
-				mNpcYellUpdateHook = DalamudAPI.GameInteropProvider.HookFromAddress<NpcYellUpdateDelegate>( fpNpcYellUpdate, NpcYellUpdateDetour );
-				mNpcYellUpdateHook?.Enable();
-			}
-			else
-			{
-				throw new Exception( "Unable to find the specified function signature for NpcYell::Update." );
-			}
 		}
+
+		//	General Initialization
+		NpcNameGenerator.CacheCurrentRegion( DalamudAPI.ClientState.TerritoryType );
 
 		//	UI Initialization
 		mUI = new PluginUI( this, mConfiguration, pluginInterface );
@@ -116,8 +98,6 @@ public sealed class Plugin : IDalamudPlugin
 		mOpenBalloonHook?.Dispose();
 		mHandleNpcYellHook?.Disable();
 		mHandleNpcYellHook?.Dispose();
-		mNpcYellUpdateHook?.Disable();
-		mNpcYellUpdateHook?.Dispose();
 
 		mConfiguration.Save();
 
@@ -278,52 +258,13 @@ public sealed class Plugin : IDalamudPlugin
 		}
 	}
 
-	//***** TODO: Testing-only.  Remove before releasing plugin.
-	private unsafe void NpcYellUpdateDetour( NpcYell* pNpcYell )
-	{
-		if( pNpcYell is not null && (
-			pNpcYell->UnhandledYellCount > 0 ||
-			pNpcYell->Unk_2849 > 0 ||
-			pNpcYell->Unk_284A ) )
-			DalamudAPI.PluginLog.Verbose( $"NpcYell::Update: UnhandledYellCount - {pNpcYell->UnhandledYellCount}, Unk_2849 - {pNpcYell->Unk_2849}, Unk_284A - {pNpcYell->Unk_284A}." );
-		mNpcYellUpdateHook?.Original( pNpcYell );
-	}
-
 	private unsafe void OnGameFrameworkUpdate( IFramework framework )
 	{
 		if( !DalamudAPI.ClientState.IsLoggedIn ) return;
 
-		//***** TODO: Move to be a config helper.
-		//	Figure out how long we should track messages for repeats.
-		TimeSpan messageInfoLifetime = TimeSpan.MaxValue;
-		if( mConfiguration.mZoneConfigOverrideDict?.TryGetValue( DalamudAPI.ClientState.TerritoryType, out ZoneSpecificConfig? zoneConfig ) == true &&
-			zoneConfig.RepeatsAllowed )
-		{
-			messageInfoLifetime = zoneConfig.TimeBeforeRepeatsAllowed;
-		}
-		else if( DalamudAPI.Condition[ConditionFlag.BoundByDuty] && mConfiguration.RepeatsAllowed )
-		{
-			messageInfoLifetime = mConfiguration.TimeBeforeRepeatsAllowed_InInstance;
-		}
-		else if( mConfiguration.RepeatsAllowed )
-		{
-			messageInfoLifetime = mConfiguration.TimeBeforeRepeatsAllowed;
-		}
-
-		//***** TODO: Move to be a config helper.
-		float minBalloonTime_Sec = 0f;
-		if( mConfiguration.mZoneConfigOverrideDict?.TryGetValue( DalamudAPI.ClientState.TerritoryType, out zoneConfig ) == true )
-		{
-			minBalloonTime_Sec = zoneConfig.MinBalloonTime_Sec;
-		}
-		else if( DalamudAPI.Condition[ConditionFlag.BoundByDuty] )
-		{
-			minBalloonTime_Sec = mConfiguration.MinBalloonTimeInInstance_Sec;
-		}
-		else
-		{
-			minBalloonTime_Sec = mConfiguration.MinBalloonTime_Sec;
-		}
+		//	Get the repeat time and minimum time for current conditions.
+		TimeSpan messageInfoLifetime = mConfiguration.GetTimeBeforeRepeatsAllowed( DalamudAPI.ClientState.TerritoryType, DalamudAPI.Condition[ConditionFlag.BoundByDuty] );
+		float minBalloonTime_Sec = mConfiguration.GetMinBalloonTime_Sec( DalamudAPI.ClientState.TerritoryType, DalamudAPI.Condition[ConditionFlag.BoundByDuty] );
 
 		//	Clean up any tracked message info that has expired.
 		mNPCBalloonHistory.RemoveAll( x => x.IsExpired( messageInfoLifetime ) );
@@ -342,7 +283,7 @@ public sealed class Plugin : IDalamudPlugin
 		{
 			if( obj is ICharacter chara )
 			{
-				//	Skip PC balloons (if we ever come across any).
+				//	Skip PC balloons (although player chat bubbles do not use this system, so it shouldn't matter).
 				if( chara is IPlayerCharacter )
 				{
 					DalamudAPI.PluginLog.Debug( $"Skipping balloon on player character object 0x{obj.GameObjectId:X}." );
@@ -402,10 +343,15 @@ public sealed class Plugin : IDalamudPlugin
 
 					if( gameHandledPrinting ) balloonInfo.FlagGameHandledPrinting();
 
-					//***** TODO: Use the configured sender comparison type.
+					var senderComparisonType = mConfiguration.GetSenderComparisonType(
+						DalamudAPI.ClientState.TerritoryType,
+						DalamudAPI.Condition[ConditionFlag.BoundByDuty],
+						chara.ObjectKind );
+
 					lock( mNPCBalloonHistoryLockObj )
 					{
-						var match = mNPCBalloonHistory.FirstOrDefault( x => x.Equals( balloonInfo, true, SenderComparisonType.ObjectID ) );
+						var match = mNPCBalloonHistory.FirstOrDefault( x => x.Equals( balloonInfo, true, senderComparisonType ) );
+
 						if( match is not null )
 						{
 							match.FlagMessageSeenAgain();
@@ -460,11 +406,13 @@ public sealed class Plugin : IDalamudPlugin
 
 	private void OnLogin()
 	{
+		//***** TODO
 		//UITextColorSelector.CacheUITheme();
 	}
 
 	private void OnLogout( int type, int code )
 	{
+		//***** TODO
 		//UITextColorSelector.CacheUITheme();
 	}
 
@@ -544,9 +492,6 @@ public sealed class Plugin : IDalamudPlugin
 
 	private unsafe delegate void HandleNpcYellDelegate( NpcYell* pNpcYell, NpcYell.NpcYellInfo* pYellInfo );
 	private readonly Hook<HandleNpcYellDelegate>? mHandleNpcYellHook = null;
-
-	private unsafe delegate void NpcYellUpdateDelegate( NpcYell* pNpcYell );
-	private readonly Hook<NpcYellUpdateDelegate>? mNpcYellUpdateHook = null;
 
 	private readonly Lock mNPCBalloonHistoryLockObj = new();
 	private readonly List<NpcMessageInfo> mNPCBalloonHistory = new();

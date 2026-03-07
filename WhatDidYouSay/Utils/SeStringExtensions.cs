@@ -11,7 +11,7 @@ internal static class SeStringExtensions
 	{
 		public SeString Duplicate()
 		{
-			if( str == null ) return SeString.Empty;
+			if( str is null ) return SeString.Empty;
 			return SeString.Parse( str.Encode() ) ?? SeString.Empty;
 		}
 

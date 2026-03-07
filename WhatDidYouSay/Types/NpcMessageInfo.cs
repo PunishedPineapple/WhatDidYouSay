@@ -61,10 +61,10 @@ internal class NpcMessageInfo : IEquatable<NpcMessageInfo>
 			var speakerName = GetBestAvailableSenderName( customNameData, currentConfig, out var hasRealName, out var hasCuratedName, out var hasProceduralName );
 
 			//	Append the object ID(s) if desired.
-			if( currentConfig.ShowNPCIDInChatMessage_ForRealName && hasRealName ||
-				currentConfig.ShowNPCIDInChatMessage_ForCuratedName && hasCuratedName ||
-				currentConfig.ShowNPCIDInChatMessage_ForProceduralName && hasProceduralName ||
-				currentConfig.ShowNPCIDInChatMessage_ForNoName && !( hasRealName || hasCuratedName || hasProceduralName ) )
+			if( currentConfig.ShowNpcIdInChatMessage_ForRealName && hasRealName ||
+				currentConfig.ShowNpcIdInChatMessage_ForCuratedName && hasCuratedName ||
+				currentConfig.ShowNpcIdInChatMessage_ForProceduralName && hasProceduralName ||
+				currentConfig.ShowNpcIdInChatMessage_ForNoName && !( hasRealName || hasCuratedName || hasProceduralName ) )
 			{
 				string kindStr = SpeakerKind switch
 				{
@@ -126,7 +126,7 @@ internal class NpcMessageInfo : IEquatable<NpcMessageInfo>
 				return customName;
 			}
 			else if( currentConfig.UseProceduralNames &&
-				NpcNameGenerator.TryGenerateNameFromBNpcId( SpeakerBaseId, out var computedName ) )
+				NpcNameGenerator.TryGenerateNameFromBNpcId( SpeakerBaseId, out var computedName, currentConfig.ProceduralNameRaceKind, currentConfig.ProceduralNameReduceGender, currentConfig.ProceduralNameIgnoreRegion ) )
 			{
 				hasProceduralName = true;
 				return computedName;
@@ -142,7 +142,7 @@ internal class NpcMessageInfo : IEquatable<NpcMessageInfo>
 				return customName;
 			}
 			else if( currentConfig.UseProceduralNames &&
-				NpcNameGenerator.TryGenerateNameFromENpcId( SpeakerBaseId, out var computedName ) )
+				NpcNameGenerator.TryGenerateNameFromENpcId( SpeakerBaseId, out var computedName, currentConfig.ProceduralNameRaceKind, currentConfig.ProceduralNameReduceGender, currentConfig.ProceduralNameIgnoreRegion ) )
 			{
 				hasProceduralName = true;
 				return computedName;
@@ -170,7 +170,7 @@ internal class NpcMessageInfo : IEquatable<NpcMessageInfo>
 		return str;
 	}
 
-	public bool Equals( NpcMessageInfo? rhs, bool ignoreTimeLastSeen = true, SenderComparisonType senderComparison = SenderComparisonType.ObjectID )
+	public bool Equals( NpcMessageInfo? rhs, bool ignoreTimeLastSeen = true, SenderComparisonType senderComparison = SenderComparisonType.ObjectId )
 	{
 		//***** TODO: It is conceivable that we might have messages that differ only in non-text payloads (i.e., a repeat with italics for emphasis).
 		return rhs is not null &&
@@ -179,7 +179,7 @@ internal class NpcMessageInfo : IEquatable<NpcMessageInfo>
 				Message.TextValue.Equals( rhs.Message.TextValue );
 	}
 
-	public bool SenderEquals( NpcMessageInfo? rhs, SenderComparisonType senderComparison = SenderComparisonType.ObjectID )
+	public bool SenderEquals( NpcMessageInfo? rhs, SenderComparisonType senderComparison = SenderComparisonType.ObjectId )
 	{
 		if( rhs is null ||
 			senderComparison == SenderComparisonType.NeverEqual ||
@@ -190,11 +190,11 @@ internal class NpcMessageInfo : IEquatable<NpcMessageInfo>
 
 		return senderComparison switch
 		{
-			SenderComparisonType.ObjectID => SpeakerObjectId.Equals( rhs.SpeakerObjectId ),
-			SenderComparisonType.BaseID => SpeakerBaseId.Equals( rhs.SpeakerBaseId ),
-			SenderComparisonType.NameID_FallbackBaseID => SpeakerNameId == 0 || rhs.SpeakerNameId == 0 ? SenderEquals( rhs, SenderComparisonType.BaseID ) : SpeakerNameId.Equals( rhs.SpeakerNameId ),
-			SenderComparisonType.NameID_FallbackText => SpeakerNameId == 0 || rhs.SpeakerNameId == 0 ? SenderEquals( rhs, SenderComparisonType.NameText ) : SpeakerNameId.Equals( rhs.SpeakerNameId ),
-			SenderComparisonType.NameText => SpeakerName.TextValue.Length == 0 && rhs.SpeakerName.TextValue.Length == 0 ? SenderEquals( rhs, SenderComparisonType.BaseID ) : SpeakerName.TextValue.Equals( rhs.SpeakerName.TextValue ),
+			SenderComparisonType.ObjectId => SpeakerObjectId.Equals( rhs.SpeakerObjectId ),
+			SenderComparisonType.BaseId => SpeakerBaseId.Equals( rhs.SpeakerBaseId ),
+			SenderComparisonType.NameId_FallbackBaseId => SpeakerNameId == 0 || rhs.SpeakerNameId == 0 ? SenderEquals( rhs, SenderComparisonType.BaseId ) : SpeakerNameId.Equals( rhs.SpeakerNameId ),
+			SenderComparisonType.NameId_FallbackText => SpeakerNameId == 0 || rhs.SpeakerNameId == 0 ? SenderEquals( rhs, SenderComparisonType.NameText ) : SpeakerNameId.Equals( rhs.SpeakerNameId ),
+			SenderComparisonType.NameText => SpeakerName.TextValue.Length == 0 && rhs.SpeakerName.TextValue.Length == 0 ? SenderEquals( rhs, SenderComparisonType.BaseId ) : SpeakerName.TextValue.Equals( rhs.SpeakerName.TextValue ),
 			SenderComparisonType.NeverEqual => false,
 			_ => SpeakerObjectId.Equals( rhs.SpeakerObjectId ),
 		};
@@ -202,7 +202,7 @@ internal class NpcMessageInfo : IEquatable<NpcMessageInfo>
 
 	public static bool operator ==( NpcMessageInfo? lhs, NpcMessageInfo? rhs ) => lhs is null ? rhs is null : lhs.Equals( rhs );
 	public static bool operator !=( NpcMessageInfo? lhs, NpcMessageInfo? rhs ) => !( lhs == rhs );
-	public bool Equals( NpcMessageInfo? rhs ) => this.Equals( rhs, true, SenderComparisonType.ObjectID );
+	public bool Equals( NpcMessageInfo? rhs ) => this.Equals( rhs, true, SenderComparisonType.ObjectId );
 	public override bool Equals( object? obj ) => obj is NpcMessageInfo rhs && this.Equals( rhs );
 	public override int GetHashCode() => HashCode.Combine( SpeakerObjectId.GetHashCode(), Message?.GetHashCode() );
 }
