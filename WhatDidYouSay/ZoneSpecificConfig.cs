@@ -20,6 +20,8 @@ public class ZoneSpecificConfig
 
 	//***** TODO: Enum helpers.
 
+	//***** TODO: Set inherit flags for existing configs if both of the old fields match the default.
+
 	internal TimeSpan TimeBeforeRepeatsAllowed => TimeSpan.FromSeconds( TimeBeforeRepeatsAllowed_Sec );
 
 	public static string GetNiceNameForZone( UInt32 territoryType )

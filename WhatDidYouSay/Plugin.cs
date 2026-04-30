@@ -21,8 +21,6 @@ using FFXIVClientStructs.FFXIV.Client.Game.Object;
 using FFXIVClientStructs.FFXIV.Client.Game.UI;
 using FFXIVClientStructs.FFXIV.Client.UI.Agent;
 
-using static Dalamud.Interface.Utility.Raii.ImRaii;
-
 namespace WhatDidYouSay;
 
 public sealed class Plugin : IDalamudPlugin

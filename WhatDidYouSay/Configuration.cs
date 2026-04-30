@@ -2,13 +2,9 @@
 using System.Collections.Generic;
 
 using Dalamud.Configuration;
-using Dalamud.Game.ClientState.Conditions;
 using Dalamud.Game.ClientState.Objects.Enums;
 using Dalamud.Game.Text;
 using Dalamud.Plugin;
-
-using Lumina.Data.Parsing.Scd;
-using Lumina.Excel.Sheets;
 
 namespace WhatDidYouSay;
 
@@ -36,7 +32,7 @@ public sealed class Configuration : IPluginConfiguration
 	public bool KeepLineBreaks = false;
 	public bool RepeatsAllowed = true;
 	public bool RepeatsAllowedInInstance = true;
-	public int TimeBeforeRepeatsAllowed_Sec = 30;
+	public int TimeBeforeRepeatsAllowed_Sec = 45;
 	public int TimeBeforeRepeatsAllowedInInstance_Sec = 15;
 	public bool RepeatDetectionIsCumulative = true;
 	public bool RepeatDetectionIsCumulative_InInstance = true;
