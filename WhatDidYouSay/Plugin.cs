@@ -5,6 +5,7 @@ using System.Linq;
 
 using CheapLoc;
 
+using Dalamud.Game.Chat;
 using Dalamud.Game.ClientState.Conditions;
 using Dalamud.Game.Command;
 using Dalamud.Game.Text;
@@ -214,12 +215,12 @@ public sealed class Plugin : IDalamudPlugin
 				//	case.  Otherwise, only don't print if the actor is a player.  Technically, we do not have to worry
 				//	about players anymore, since those bubbles now use a different system, but it doesn't hurt to keep
 				//	checking in case some other plugin does something with them in the future.
-				if( pActor == null || (byte)pActor->ObjectKind != (byte)Dalamud.Game.ClientState.Objects.Enums.ObjectKind.Player )
+				if( pActor == null || (byte)pActor->ObjectKind != (byte)Dalamud.Game.ClientState.Objects.Enums.ObjectKind.Pc )
 				{
 					long currentTime_mSec = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
 
 					SeString speakerName = SeString.Empty;
-					if( pActor != null && pActor->GetName() != null )
+					if( pActor != null && pActor->GetName().HasValue )
 					{
 						speakerName = pActor->GetName().AsDalamudSeString();
 					}
@@ -246,24 +247,24 @@ public sealed class Plugin : IDalamudPlugin
 		}
 	}
 
-	private void OnChatMessage( XivChatType type, Int32 timestamp, ref SeString sender, ref SeString message, ref bool isHandled )
+	private void OnChatMessage( IHandleableChatMessage message )
 	{
 		//	We want to keep a short record of NPC dialogue messages that the game sends itself, because
 		//	in some cases, these can duplicate speech bubbles.  We'll use these to avoid duplicate log lines.
-		if( type == XivChatType.NPCDialogue && mConfiguration.IgnoreIfAlreadyInChat_NPCDialogue )
+		if( message.LogKind == XivChatType.NPCDialogue && mConfiguration.IgnoreIfAlreadyInChat_NPCDialogue )
 		{
 			lock( mGameChatInfoLockObj )
 			{
-				mGameChatInfo.Add( new( message, DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), sender ) );
+				mGameChatInfo.Add( new( message.Message, DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), message.Sender ) );
 			}
 			return;
 		}
 
-		if( type == XivChatType.NPCDialogueAnnouncements && mConfiguration.IgnoreIfAlreadyInChat_NPCDialogueAnnouncements )
+		if( message.LogKind == XivChatType.NPCDialogueAnnouncements && mConfiguration.IgnoreIfAlreadyInChat_NPCDialogueAnnouncements )
 		{
 			lock( mGameChatInfoLockObj )
 			{
-				mGameChatInfo.Add( new( message, DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), sender ) );
+				mGameChatInfo.Add( new( message.Message, DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), message.Sender ) );
 			}
 			return;
 		}
@@ -430,7 +431,7 @@ public sealed class Plugin : IDalamudPlugin
 				} );
 	}
 
-	private void OnTerritoryChanged( UInt16 ID )
+	private void OnTerritoryChanged( uint ID )
 	{
 		ClearSpeechBubbleHistory();
 		ClearGameChatHistory();

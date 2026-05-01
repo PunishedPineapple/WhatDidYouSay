@@ -1,4 +1,4 @@
-﻿<Project Sdk="Dalamud.NET.Sdk/14.0.1">
+﻿<Project Sdk="Dalamud.NET.Sdk/15.0.0">
 
 	<!-- Compiler Settings -->
 	<PropertyGroup>
@@ -13,10 +13,10 @@
 
 	<!-- Project Information -->
 	<PropertyGroup>
-		<Version>1.0.2.8</Version>
+		<Version>1.0.2.9</Version>
 		<Authors>PunishedPineapple</Authors>
 		<Product />
-		<Copyright>Copyright © PunishedPineapple 2022-2025</Copyright>
+		<Copyright>Copyright © PunishedPineapple 2022-2026</Copyright>
 		<PackageProjectUrl>https://github.com/PunishedPineapple/WhatDidYouSay</PackageProjectUrl>
 		<RepositoryUrl>https://github.com/PunishedPineapple/WhatDidYouSay</RepositoryUrl>
 	</PropertyGroup>
